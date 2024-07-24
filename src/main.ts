@@ -5,22 +5,20 @@ import {PDFDocument} from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit';
 import Jimp from "jimp";
 import * as fs from "fs";
-import {updateElectronApp, UpdateSourceType} from 'update-electron-app';
 import log from 'electron-log/main';
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
     app.quit();
 }
-log.info('logujem se negde')
-updateElectronApp({
-    updateSource: {
-        type: UpdateSourceType.ElectronPublicUpdateService,
-        repo: 'dev-uros/citaclicnekarte',
-        host: 'https://github.com'
-    },
-    updateInterval: '1 hour',
-    logger: log
-})
+// updateElectronApp({
+//     updateSource: {
+//         type: UpdateSourceType.ElectronPublicUpdateService,
+//         repo: 'dev-uros/citaclicnekarte',
+//         host: 'https://github.com'
+//     },
+//     updateInterval: '1 hour',
+//     logger: log
+// })
 const createWindow = () => {
     // Create the browser window.
     const mainWindow = new BrowserWindow({
@@ -128,44 +126,47 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
 
         cardReader = reader;
 
-        console.log('New reader detected', reader.name)
+        log.info('New reader detected', reader.name)
 
         reader.on('error', err => {
-            console.log('Error(', reader.name, '):', err.message)
+            log.error('Error(', reader.name, '):', err.message)
         })
 
         reader.on('status', status => {
-            console.log('Status(', reader.name, '):', status)
+            log.info('Status(', reader.name, '):', status)
             const changes = reader.state ^ status.state
             if (changes) {
                 if ((changes & reader.SCARD_STATE_EMPTY) && (status.state & reader.SCARD_STATE_EMPTY)) {
                     //emituj event - Molimo ubacite licnu kartu u citac
                     browserWindow.webContents.send('insert-card-into-reader');
 
-                    console.log('Card removed')
+                    log.info('Card removed')
                     reader.disconnect(reader.SCARD_LEAVE_CARD, err => {
                         if (err) {
+                            log.error('Error(', reader.name, '):', err.message)
                             browserWindow.webContents.send('display-error');
                             reader.close()
                             pcsc.close()
                             return;
                         } else {
-                            console.log('Disconnected')
+                            log.info('Disconnected')
                         }
                     })
                 } else if ((changes & reader.SCARD_STATE_PRESENT) && (status.state & reader.SCARD_STATE_PRESENT)) {
                     //emituj event loading
-                    console.log('Card inserted')
+                    log.info('Card inserted')
                     browserWindow.webContents.send('card-inserted-into-reader');
 
                     reader.connect({share_mode: reader.SCARD_SHARE_SHARED}, async (err, protocol) => {
                         if (err) {
+                            log.error('Error(', reader.name, '):', err.message)
+
                             browserWindow.webContents.send('display-error');
                             reader.close()
                             pcsc.close()
                             return;
                         } else {
-                            console.log('Protocol(', reader.name, '):', protocol)
+                            log.info('Protocol(', reader.name, '):', protocol)
 
                             // Init card
 
@@ -174,6 +175,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                             try {
                                 apu = buildAPDU(0x00, 0xA4, 0x04, 0x00, data, 0)
                             } catch (e) {
+                                log.error('Error(', reader.name, '):', err.message)
+
                                 browserWindow.webContents.send('display-error');
                                 reader.close()
                                 pcsc.close()
@@ -182,6 +185,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
 
                             reader.transmit(apu, 256, protocol, async (err, data) => {
                                 if (err) {
+                                    log.error('Error(', reader.name, '):', err.message)
+
                                     browserWindow.webContents.send('display-error');
                                     reader.close()
                                     pcsc.close()
@@ -194,6 +199,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                 try {
                                     cardDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, cardDataLocation, 4)
                                 } catch (e) {
+                                    log.error('Error(', reader.name, '):', e.message)
+
                                     browserWindow.webContents.send('display-error');
                                     reader.close()
                                     pcsc.close()
@@ -203,6 +210,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     await generateCardData(reader, protocol, cardDataLocation, cardDataLocationApdu, 'DOCUMENT')
 
                                 } catch (e) {
+                                    log.error('Error(', reader.name, '):', e.message)
+
                                     browserWindow.webContents.send('display-error');
                                     reader.close()
                                     pcsc.close()
@@ -215,6 +224,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                 try {
                                     personalDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, personalDataLocation, 4)
                                 } catch (e) {
+                                    log.error('Error(', reader.name, '):', e.message)
+
                                     browserWindow.webContents.send('display-error');
                                     reader.close()
                                     pcsc.close()
@@ -225,6 +236,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     await generateCardData(reader, protocol, personalDataLocation, personalDataLocationApdu, 'PERSONAL')
 
                                 } catch (e) {
+                                    log.error('Error(', reader.name, '):', e.message)
+
                                     browserWindow.webContents.send('display-error');
                                     reader.close()
                                     pcsc.close()
@@ -238,6 +251,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                 try {
                                     residenceDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, residenceDataLocation, 4)
                                 } catch (e) {
+                                    log.error('Error(', reader.name, '):', e.message)
+
                                     browserWindow.webContents.send('display-error');
                                     reader.close()
                                     pcsc.close()
@@ -247,6 +262,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                 try {
                                     await generateCardData(reader, protocol, residenceDataLocation, residenceDataLocationApdu, 'RESIDENCE')
                                 } catch (e) {
+                                    log.error('Error(', reader.name, '):', e.message)
+
                                     browserWindow.webContents.send('display-error');
                                     reader.close()
                                     pcsc.close()
@@ -260,6 +277,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                 try {
                                     imageDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, imageDataLocation, 4)
                                 } catch (e) {
+                                    log.error('Error(', reader.name, '):', e.message)
+
                                     browserWindow.webContents.send('display-error');
                                     reader.close()
                                     pcsc.close()
@@ -270,6 +289,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     await generateCardData(reader, protocol, imageDataLocation, imageDataLocationApdu, 'IMAGE')
 
                                 } catch (e) {
+                                    log.error('Error(', reader.name, '):', e.message)
+
                                     browserWindow.webContents.send('display-error');
                                     reader.close()
                                     pcsc.close()
@@ -278,6 +299,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                 try {
                                     allData.pdf = await createPdf();
                                 } catch (e) {
+                                    log.error('Error(', reader.name, '):', e.message)
+
                                     browserWindow.webContents.send('display-error');
                                     reader.close()
                                     pcsc.close()
@@ -287,13 +310,15 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                 try {
                                     allData.pdfBase64 = uint8ArrayToBase64(allData.pdf);
                                 } catch (e) {
+                                    log.error('Error(', reader.name, '):', e.message)
+
                                     browserWindow.webContents.send('display-error');
                                     reader.close()
                                     pcsc.close()
                                     return;
                                 }
 
-                                console.log(allData);
+                                log.info(allData);
                                 reader.close()
                                 pcsc.close()
                                 browserWindow.webContents.send('card-data-loaded', allData);
@@ -306,14 +331,14 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
         })
 
         reader.on('end', () => {
-            console.log('Reader', reader.name, 'removed')
+            log.info('Reader', reader.name, 'removed')
         })
     })
 
 
     pcsc.on('error', err => {
 
-        console.log('PCSC error', err.message)
+        log.info('PCSC error', err.message)
         // reader.close()
         pcsc.close()
     })
@@ -384,6 +409,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
             //select file
             reader.transmit(Buffer.from(dataApdu), 1024, protocol, async (err, data) => {
                 if (err) {
+                    log.error('Error(', reader.name, '):', err.message)
+
                     reject('error')
                     return;
                 }
@@ -393,18 +420,22 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 try {
                     apu = buildAPDU(0x00, 0xB0, (0xFF00 & 0) >> 8, 0 & 0xFF, [], readSize)
                 } catch (e) {
+                    log.error('Error(', reader.name, '):', e.message)
+
                     reject('error');
                     return;
                 }
 
                 //read file
                 if (dataType === 'DOCUMENT') {
-                    console.log('udje document')
+                    log.info('udje document')
                     let fileDocumentData;
                     try {
                         fileDocumentData = await readFileDocumentData(reader, apu, protocol)
 
                     } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
                         reject(e)
                         return;
                     }
@@ -414,6 +445,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     try {
                         fileDocumentData = await readFilePersonalData(reader, apu, protocol)
                     } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
                         reject(e);
                         return;
                     }
@@ -424,6 +457,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                         fileDocumentData = await readFileResidenceData(reader, apu, protocol)
 
                     } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
                         reject('error');
                         return;
                     }
@@ -433,6 +468,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     try {
                         fileDocumentData = await readFileImageData(reader, apu, protocol)
                     } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
                         reject('error');
                         return;
                     }
@@ -447,40 +484,42 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
 
             reader.transmit(Buffer.from(apu), 256, protocol, async (err, data) => {
                 if (err) {
-                    console.log('Error reading header:', err)
+                    log.error('Error reading header:', err.message)
                     reject('error');
                     return
                 }
 
                 const rsp = data.subarray(0, data.length - 2)
                 let offset = rsp.length
-                console.log('ovo je offset')
-                console.log(offset)
+                log.info('ovo je offset')
+                log.info(offset)
                 let length = rsp.readUInt16LE(2)
 
 
-                console.log('Data read:', length)
+                log.info('Data read:', length)
 
                 const output = []
                 while (length > 0) {
-                    console.log('udje u while')
+                    log.info('udje u while')
                     const readSize = Math.min(length, 0xFF)
                     let apu;
                     try {
                         apu = buildAPDU(0x00, 0xB0, (0xFF00 & offset) >> 8, offset & 0xFF, [], readSize)
 
                     } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
                         reject('apdu');
                         return;
                     }
-                    console.log({readSize, apu})
+                    log.info({readSize, apu})
 
                     let data;
                     try {
                         data = await transmitAsync(reader, protocol, apu)
 
                     } catch (e) {
-                        console.log('udje ovde gde proveravam')
+                        log.error('Error(', reader.name, '):', e.message)
                         reject('error')
                         return;
                     }
@@ -490,12 +529,14 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     output.push(...rsp)
 
                 }
-                console.log('ovo je output')
-                console.log(output)
+                log.info('ovo je output')
+                log.info(output)
                 let parsedData
                 try {
                     parsedData = parseTLV(Buffer.from(output))
                 } catch (e) {
+                    log.error('Error(', reader.name, '):', e.message)
+
                     reject('ne radi')
                     return;
                 }
@@ -504,42 +545,42 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
 
                 const DocumentNumber = {value: ''}
                 assignField(parsedData, 1546, DocumentNumber)
-                console.log('DocumentNumber:', DocumentNumber.value)
+                log.info('DocumentNumber:', DocumentNumber.value)
                 allData.documentData.DocumentNumber = DocumentNumber.value
                 dataArray.push({DocumentNumber: DocumentNumber.value})
 
 
                 const DocumentType = {value: ''}
                 assignField(parsedData, 1547, DocumentType)
-                console.log('DocumentType:', DocumentType.value)
+                log.info('DocumentType:', DocumentType.value)
                 allData.documentData.DocumentType = DocumentType.value
 
                 dataArray.push({DocumentType: DocumentType.value})
 
                 const DocumentSerialNumber = {value: ''}
                 assignField(parsedData, 1548, DocumentSerialNumber)
-                console.log('DocumentSerialNumber:', DocumentSerialNumber.value)
+                log.info('DocumentSerialNumber:', DocumentSerialNumber.value)
                 allData.documentData.DocumentSerialNumber = DocumentSerialNumber.value
 
                 dataArray.push({DocumentSerialNumber: DocumentSerialNumber.value})
 
                 const IssuingDate = {value: ''}
                 assignField(parsedData, 1549, IssuingDate)
-                console.log('IssuingDate:', IssuingDate.value)
+                log.info('IssuingDate:', IssuingDate.value)
                 allData.documentData.IssuingDate = formatDateString(IssuingDate.value)
 
                 dataArray.push({IssuingDate: IssuingDate.value})
 
                 const ExpiryDate = {value: ''}
                 assignField(parsedData, 1550, ExpiryDate)
-                console.log('ExpiryDate:', ExpiryDate.value)
+                log.info('ExpiryDate:', ExpiryDate.value)
                 allData.documentData.ExpiryDate = formatDateString(ExpiryDate.value)
 
                 dataArray.push({ExpiryDate: ExpiryDate.value})
 
                 const IssuingAuthority = {value: ''}
                 assignField(parsedData, 1551, IssuingAuthority)
-                console.log('IssuingAuthority:', IssuingAuthority.value)
+                log.info('IssuingAuthority:', IssuingAuthority.value)
                 dataArray.push({IssuingAuthority: IssuingAuthority.value})
                 allData.documentData.IssuingAuthority = IssuingAuthority.value
 
@@ -553,7 +594,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
         return new Promise((resolve, reject) => {
             reader.transmit(Buffer.from(apu), 256, protocol, async (err, data) => {
                 if (err) {
-                    console.log('Error reading header:', err)
+                    log.error('Error reading header:', err.message)
                     reject('error');
                     return
                 }
@@ -562,26 +603,30 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 let length = rsp.readUInt16LE(2)
 
 
-                console.log('Data read:', length)
+                log.info('Data read:', length)
 
                 const output = []
                 while (length > 0) {
-                    console.log('udje u while')
+                    log.info('udje u while')
                     const readSize = Math.min(length, 0xFF)
                     let apu;
                     try {
                         apu = buildAPDU(0x00, 0xB0, (0xFF00 & offset) >> 8, offset & 0xFF, [], readSize);
                     } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
                         reject('error');
                         return;
                     }
-                    console.log({readSize, apu})
+                    log.info({readSize, apu})
 
                     let data;
 
                     try {
                         data = await transmitAsync(reader, protocol, apu)
                     } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
                         reject('error');
                         return;
                     }
@@ -591,12 +636,14 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     output.push(...rsp)
 
                 }
-                console.log('ovo je output')
-                console.log(output)
+                log.info('ovo je output')
+                log.info(output)
                 let parsedData;
                 try {
                     parsedData = parseTLV(Buffer.from(output));
                 } catch (e) {
+                    log.error('Error(', reader.name, '):', e.message)
+
                     resolve('error');
                     return;
                 }
@@ -605,7 +652,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
 
                 const PersonalNumber = {value: ''}
                 assignField(parsedData, 1558, PersonalNumber)
-                console.log('PersonalNumber:', PersonalNumber.value)
+                log.info('PersonalNumber:', PersonalNumber.value)
                 allData.personalData.PersonalNumber = PersonalNumber.value
                 dataArray.push({PersonalNumber: PersonalNumber.value})
 
@@ -613,7 +660,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 assignField(parsedData, 1559, Surname)
                 allData.personalData.Surname = Surname.value
 
-                console.log('Surname:', Surname.value)
+                log.info('Surname:', Surname.value)
                 dataArray.push({Surname: Surname.value})
 
 
@@ -621,33 +668,33 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 assignField(parsedData, 1560, GivenName)
                 allData.personalData.GivenName = GivenName.value
 
-                console.log('GivenName:', GivenName.value)
+                log.info('GivenName:', GivenName.value)
                 dataArray.push({GivenName: GivenName.value})
 
                 const ParentGivenName = {value: ''}
                 assignField(parsedData, 1561, ParentGivenName)
-                console.log('ParentGivenName:', ParentGivenName.value)
+                log.info('ParentGivenName:', ParentGivenName.value)
                 allData.personalData.ParentGivenName = ParentGivenName.value
 
                 dataArray.push({ParentGivenName: ParentGivenName.value})
 
                 const Sex = {value: ''}
                 assignField(parsedData, 1562, Sex)
-                console.log('Sex:', Sex.value)
+                log.info('Sex:', Sex.value)
                 allData.personalData.Sex = Sex.value
 
                 dataArray.push({Sex: Sex.value})
 
                 const PlaceOfBirth = {value: ''}
                 assignField(parsedData, 1563, PlaceOfBirth)
-                console.log('PlaceOfBirth:', PlaceOfBirth.value)
+                log.info('PlaceOfBirth:', PlaceOfBirth.value)
                 allData.personalData.PlaceOfBirth = PlaceOfBirth.value
 
                 dataArray.push({PlaceOfBirth: PlaceOfBirth.value})
 
                 const CommunityOfBirth = {value: ''}
                 assignField(parsedData, 1564, CommunityOfBirth)
-                console.log('CommunityOfBirth:', CommunityOfBirth.value)
+                log.info('CommunityOfBirth:', CommunityOfBirth.value)
                 allData.personalData.CommunityOfBirth = CommunityOfBirth.value
 
                 dataArray.push({CommunityOfBirth: CommunityOfBirth.value})
@@ -656,14 +703,14 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 assignField(parsedData, 1565, StateOfBirth)
                 allData.personalData.StateOfBirth = StateOfBirth.value
 
-                console.log('StateOfBirth:', StateOfBirth.value)
+                log.info('StateOfBirth:', StateOfBirth.value)
                 dataArray.push({StateOfBirth: StateOfBirth.value})
 
                 const DateOfBirth = {value: ''}
                 assignField(parsedData, 1566, DateOfBirth)
                 allData.personalData.DateOfBirth = formatDateString(DateOfBirth.value)
 
-                console.log('DateOfBirth:', DateOfBirth.value)
+                log.info('DateOfBirth:', DateOfBirth.value)
                 dataArray.push({DateOfBirth: DateOfBirth.value})
 
                 resolve()
@@ -676,7 +723,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
         return new Promise((resolve, reject) => {
             reader.transmit(Buffer.from(apu), 256, protocol, async (err, data) => {
                 if (err) {
-                    console.log('Error reading header:', err)
+                    log.error('Error reading header:', err.message)
                     reject('error');
                     return
                 }
@@ -685,26 +732,30 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 let length = rsp.readUInt16LE(2)
 
 
-                console.log('Data read:', length)
+                log.info('Data read:', length)
 
                 const output = []
                 while (length > 0) {
-                    console.log('udje u while')
+                    log.info('udje u while')
                     const readSize = Math.min(length, 0xFF)
                     let apu;
 
                     try {
                         apu = buildAPDU(0x00, 0xB0, (0xFF00 & offset) >> 8, offset & 0xFF, [], readSize)
                     } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
                         reject('error');
                         return;
                     }
-                    console.log({readSize, apu})
+                    log.info({readSize, apu})
 
                     let data;
                     try {
                         data = await transmitAsync(reader, protocol, apu)
                     } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
                         reject('error');
                         return;
                     }
@@ -714,13 +765,15 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     output.push(...rsp)
 
                 }
-                console.log('ovo je output')
-                console.log(output)
+                log.info('ovo je output')
+                log.info(output)
                 let parsedData;
 
                 try {
                     parsedData = parseTLV(Buffer.from(output))
                 } catch (e) {
+                    log.error('Error(', reader.name, '):', e.message)
+
                     reject('error');
                     return;
                 }
@@ -730,12 +783,12 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 const State = {value: ''}
                 assignField(parsedData, 1568, State)
                 allData.residenceData.State = State.value
-                console.log('State:', State.value)
+                log.info('State:', State.value)
                 dataArray.push({State: State.value})
 
                 const Community = {value: ''}
                 assignField(parsedData, 1569, Community)
-                console.log('Community:', Community.value)
+                log.info('Community:', Community.value)
                 allData.residenceData.Community = Community.value
 
                 dataArray.push({Community: Community.value})
@@ -743,56 +796,56 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
 
                 const Place = {value: ''}
                 assignField(parsedData, 1570, Place)
-                console.log('Place:', Place.value)
+                log.info('Place:', Place.value)
                 allData.residenceData.Place = Place.value
 
                 dataArray.push({Place: Place.value})
 
                 const Street = {value: ''}
                 assignField(parsedData, 1571, Street)
-                console.log('Street:', Street.value)
+                log.info('Street:', Street.value)
                 allData.residenceData.Street = Street.value
 
                 dataArray.push({Street: Street.value})
 
                 const AddressNumber = {value: ''}
                 assignField(parsedData, 1572, AddressNumber)
-                console.log('AddressNumber:', AddressNumber.value)
+                log.info('AddressNumber:', AddressNumber.value)
                 allData.residenceData.AddressNumber = AddressNumber.value
 
                 dataArray.push({AddressNumber: AddressNumber.value})
 
                 const AddressLetter = {value: ''}
                 assignField(parsedData, 1573, AddressLetter)
-                console.log('AddressLetter:', AddressLetter.value)
+                log.info('AddressLetter:', AddressLetter.value)
                 allData.residenceData.AddressLetter = AddressLetter.value
 
                 dataArray.push({AddressLetter: AddressLetter.value})
 
                 const AddressEntrance = {value: ''}
                 assignField(parsedData, 1574, AddressEntrance)
-                console.log('AddressEntrance:', AddressEntrance.value)
+                log.info('AddressEntrance:', AddressEntrance.value)
                 allData.residenceData.AddressEntrance = AddressEntrance.value
 
                 dataArray.push({AddressEntrance: AddressEntrance.value})
 
                 const AddressFloor = {value: ''}
                 assignField(parsedData, 1575, AddressFloor)
-                console.log('AddressFloor:', AddressFloor.value)
+                log.info('AddressFloor:', AddressFloor.value)
                 allData.residenceData.AddressFloor = AddressFloor.value
 
                 dataArray.push({AddressFloor: AddressFloor.value})
 
                 const AddressApartmentNumber = {value: ''}
                 assignField(parsedData, 1578, AddressApartmentNumber)
-                console.log('AddressApartmentNumber:', AddressApartmentNumber.value)
+                log.info('AddressApartmentNumber:', AddressApartmentNumber.value)
                 allData.residenceData.AddressApartmentNumber = AddressApartmentNumber.value
 
                 dataArray.push({AddressApartmentNumber: AddressApartmentNumber.value})
 
                 const AddressDate = {value: ''}
                 assignField(parsedData, 1580, AddressDate)
-                console.log('AddressDate:', AddressDate.value)
+                log.info('AddressDate:', AddressDate.value)
                 allData.residenceData.AddressDate = AddressDate.value === '01010001' ? 'NEDOSTUPAN' : formatDateString(AddressDate.value)
 
                 dataArray.push({AddressDate: AddressDate.value})
@@ -807,7 +860,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
         return new Promise((resolve, reject) => {
             reader.transmit(Buffer.from(apu), 1024, protocol, async (err, data) => {
                 if (err) {
-                    console.log('Error reading header:', err)
+                    log.info('Error reading header:', err)
                     reject('error');
                     return
                 }
@@ -816,26 +869,30 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 let length = rsp.readUInt16LE(2)
 
 
-                console.log('Data read:', length)
+                log.info('Data read:', length)
 
                 const output = []
                 while (length > 0) {
-                    console.log('udje u while')
+                    log.info('udje u while')
                     const readSize = Math.min(length, 0xFF)
                     let apu;
 
                     try {
                         apu = buildAPDU(0x00, 0xB0, (0xFF00 & offset) >> 8, offset & 0xFF, [], readSize)
                     } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
                         reject('error');
                         return;
                     }
-                    console.log({readSize, apu})
+                    log.info({readSize, apu})
 
                     let data;
                     try {
                         data = await transmitAsync(reader, protocol, apu)
                     } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
                         reject('error');
                         return;
                     }
@@ -847,15 +904,15 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 }
                 const imageBuffer = Buffer.from(output.slice(4)); // Slice the first 4 bytes if needed
 
-                console.log('Final image buffer length:', imageBuffer.length);
-                console.log('First few bytes of the image buffer:', imageBuffer.subarray(0, 10));
+                log.info('Final image buffer length:', imageBuffer.length);
+                log.info('First few bytes of the image buffer:', imageBuffer.subarray(0, 10));
 
                 // Process image buffer using sharp
                 Jimp.read(imageBuffer)
                     .then((image) => {
                         image.getBuffer(Jimp.MIME_JPEG, (err, decodedImageBuffer) => {
                             if (err) {
-                                console.log('Error decoding image with Jimp:', err);
+                                log.info('Error decoding image with Jimp:', err);
                                 reject(err);
                             } else {
                                 allData.image = decodedImageBuffer.toString('base64');
@@ -864,7 +921,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                         });
                     })
                     .catch((err) => {
-                        console.log('Error reading image with Jimp:', err);
+
+                        log.error('Error reading image with Jimp:', err);
                         reject(err);
                     });
 
@@ -930,7 +988,8 @@ ipcMain.on('initialize-id-card-reader', async (event) => {
         await initializeIDCardReader(browserWindow);
 
     } catch (e) {
-        console.log(e);
+
+        log.error(e);
     }
 
 
