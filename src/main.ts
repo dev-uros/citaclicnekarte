@@ -319,7 +319,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     return;
                                 }
 
-                                log.info(allData);
+                                // log.info(allData);
                                 reader.close()
                                 pcsc.close()
                                 browserWindow.webContents.send('card-data-loaded', allData);
@@ -492,12 +492,12 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
 
                 const rsp = data.subarray(0, data.length - 2)
                 let offset = rsp.length
-                log.info('ovo je offset')
-                log.info(offset)
+                // log.info('ovo je offset')
+                // log.info(offset)
                 let length = rsp.readUInt16LE(2)
 
 
-                log.info('Data read:', length)
+                // log.info('Data read:', length)
 
                 const output = []
                 while (length > 0) {
@@ -513,7 +513,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                         reject('apdu');
                         return;
                     }
-                    log.info({readSize, apu})
+                    // log.info({readSize, apu})
 
                     let data;
                     try {
@@ -530,8 +530,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     output.push(...rsp)
 
                 }
-                log.info('ovo je output')
-                log.info(output)
+                // log.info('ovo je output')
+                // log.info(output)
                 let parsedData
                 try {
                     parsedData = parseTLV(Buffer.from(output))
@@ -604,11 +604,11 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 let length = rsp.readUInt16LE(2)
 
 
-                log.info('Data read:', length)
+                // log.info('Data read:', length)
 
                 const output = []
                 while (length > 0) {
-                    log.info('udje u while')
+                    // log.info('udje u while')
                     const readSize = Math.min(length, 0xFF)
                     let apu;
                     try {
@@ -619,7 +619,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                         reject('error');
                         return;
                     }
-                    log.info({readSize, apu})
+                    // log.info({readSize, apu})
 
                     let data;
 
@@ -637,8 +637,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     output.push(...rsp)
 
                 }
-                log.info('ovo je output')
-                log.info(output)
+                // log.info('ovo je output')
+                // log.info(output)
                 let parsedData;
                 try {
                     parsedData = parseTLV(Buffer.from(output));
@@ -733,11 +733,11 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 let length = rsp.readUInt16LE(2)
 
 
-                log.info('Data read:', length)
+                // log.info('Data read:', length)
 
                 const output = []
                 while (length > 0) {
-                    log.info('udje u while')
+                    // log.info('udje u while')
                     const readSize = Math.min(length, 0xFF)
                     let apu;
 
@@ -749,7 +749,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                         reject('error');
                         return;
                     }
-                    log.info({readSize, apu})
+                    // log.info({readSize, apu})
 
                     let data;
                     try {
@@ -766,8 +766,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     output.push(...rsp)
 
                 }
-                log.info('ovo je output')
-                log.info(output)
+                // log.info('ovo je output')
+                // log.info(output)
                 let parsedData;
 
                 try {
@@ -870,11 +870,11 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 let length = rsp.readUInt16LE(2)
 
 
-                log.info('Data read:', length)
+                // log.info('Data read:', length)
 
                 const output = []
                 while (length > 0) {
-                    log.info('udje u while')
+                    // log.info('udje u while')
                     const readSize = Math.min(length, 0xFF)
                     let apu;
 
@@ -886,7 +886,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                         reject('error');
                         return;
                     }
-                    log.info({readSize, apu})
+                    // log.info({readSize, apu})
 
                     let data;
                     try {
@@ -905,15 +905,15 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 }
                 const imageBuffer = Buffer.from(output.slice(4)); // Slice the first 4 bytes if needed
 
-                log.info('Final image buffer length:', imageBuffer.length);
-                log.info('First few bytes of the image buffer:', imageBuffer.subarray(0, 10));
+                // log.info('Final image buffer length:', imageBuffer.length);
+                // log.info('First few bytes of the image buffer:', imageBuffer.subarray(0, 10));
 
                 // Process image buffer using sharp
                 Jimp.read(imageBuffer)
                     .then((image) => {
                         image.getBuffer(Jimp.MIME_JPEG, (err, decodedImageBuffer) => {
                             if (err) {
-                                log.info('Error decoding image with Jimp:', err);
+                                log.error('Error decoding image with Jimp:', err);
                                 reject(err);
                             } else {
                                 allData.image = decodedImageBuffer.toString('base64');
