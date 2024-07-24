@@ -43,10 +43,13 @@ const createWindow = () => {
         mainWindow.focus();
         // showOpenDialog(mainWindow);
     })
-    mainWindow.webContents.openDevTools({
-        mode: 'detach',
-    });
 
+    console.log(app.isPackaged)
+    if(!app.isPackaged){
+        mainWindow.webContents.openDevTools({
+            mode: 'detach',
+        });
+    }
 
     return mainWindow;
 };
