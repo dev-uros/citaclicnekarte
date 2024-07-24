@@ -343,8 +343,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
     pcsc.on('error', err => {
 
         log.info('PCSC error', err.message)
-        // reader.close()
-        pcsc.close()
+
     })
 
     function buildAPDU(cla, ins, p1, p2, data, ne) {
