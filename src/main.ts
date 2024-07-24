@@ -6,19 +6,20 @@ import fontkit from '@pdf-lib/fontkit';
 import Jimp from "jimp";
 import * as fs from "fs";
 import log from 'electron-log/main';
+import {updateElectronApp, UpdateSourceType} from "update-electron-app";
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
     app.quit();
 }
-// updateElectronApp({
-//     updateSource: {
-//         type: UpdateSourceType.ElectronPublicUpdateService,
-//         repo: 'dev-uros/citaclicnekarte',
-//         host: 'https://github.com'
-//     },
-//     updateInterval: '1 hour',
-//     logger: log
-// })
+updateElectronApp({
+    updateSource: {
+        type: UpdateSourceType.ElectronPublicUpdateService,
+        repo: 'dev-uros/citaclicnekarte',
+        host: 'host: "https://update.electronjs.org"'
+    },
+    updateInterval: '1 hour',
+    logger: log
+})
 const createWindow = () => {
     // Create the browser window.
     const mainWindow = new BrowserWindow({
