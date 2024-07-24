@@ -15,7 +15,7 @@ log.info('logujem se negde')
 updateElectronApp({
     updateSource: {
         type: UpdateSourceType.ElectronPublicUpdateService,
-        repo: 'dev-uros/citac-licne-karte-rs',
+        repo: 'dev-uros/citaclicnekarte',
         host: 'https://github.com'
     },
     updateInterval: '1 hour',

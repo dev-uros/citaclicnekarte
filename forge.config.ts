@@ -15,7 +15,7 @@ const config: ForgeConfig = {
     publishers: [
         new PublisherGithub({
             repository: {
-                name: 'citac-licne-karte-rs',
+                name: 'citaclicnekarte',
                 owner: 'dev-uros'
             },
             authToken: process.env.GITHUB_TOKEN,

@@ -6,7 +6,7 @@
   "main": ".vite/build/main.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dev-uros/citac-licne-karte-rs"
+    "url": "https://github.com/dev-uros/citaclicnekarte"
   },
   "scripts": {
     "start": "electron-forge start",
