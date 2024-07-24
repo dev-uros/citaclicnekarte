@@ -15,7 +15,7 @@ updateElectronApp({
     updateSource: {
         type: UpdateSourceType.ElectronPublicUpdateService,
         repo: 'dev-uros/citaclicnekarte',
-        host: 'host: "https://update.electronjs.org"'
+        host: 'https://update.electronjs.org'
     },
     updateInterval: '1 hour',
     logger: log
