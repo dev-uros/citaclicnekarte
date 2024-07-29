@@ -149,11 +149,12 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                         if (err) {
                             log.error('Error(', reader.name, '):', err.message)
                             browserWindow.webContents.send('display-error');
-                            //reader.close()
+                            reader.close()
                             pcsc.close()
                             return;
                         } else {
                             log.info('Disconnected')
+                            return;
                         }
                     })
                 } else if ((changes & reader.SCARD_STATE_PRESENT) && (status.state & reader.SCARD_STATE_PRESENT)) {
@@ -166,7 +167,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                             log.error('Error(', reader.name, '):', err.message)
 
                             browserWindow.webContents.send('display-error');
-                            //reader.close()
+                            reader.close()
                             pcsc.close()
                             return;
                         } else {
@@ -182,7 +183,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                 log.error('Error(', reader.name, '):', err.message)
 
                                 browserWindow.webContents.send('display-error');
-                                //reader.close()
+                                reader.close()
                                 pcsc.close()
                                 return;
                             }
@@ -192,7 +193,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     log.error('Error(', reader.name, '):', err.message)
 
                                     browserWindow.webContents.send('display-error');
-                                    //reader.close()
+                                    reader.close()
                                     pcsc.close()
                                     return;
                                 }
@@ -206,7 +207,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     log.error('Error(', reader.name, '):', e.message)
 
                                     browserWindow.webContents.send('display-error');
-                                    //reader.close()
+                                    reader.close()
                                     pcsc.close()
                                     return;
                                 }
@@ -217,7 +218,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     log.error('Error(', reader.name, '):', e.message)
 
                                     browserWindow.webContents.send('display-error');
-                                    //reader.close()
+                                    reader.close()
                                     pcsc.close()
                                     return;
                                 }
@@ -231,7 +232,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     log.error('Error(', reader.name, '):', e.message)
 
                                     browserWindow.webContents.send('display-error');
-                                    //reader.close()
+                                    reader.close()
                                     pcsc.close()
                                     return;
                                 }
@@ -243,7 +244,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     log.error('Error(', reader.name, '):', e.message)
 
                                     browserWindow.webContents.send('display-error');
-                                    //reader.close()
+                                    reader.close()
                                     pcsc.close()
                                     return;
                                 }
@@ -258,7 +259,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     log.error('Error(', reader.name, '):', e.message)
 
                                     browserWindow.webContents.send('display-error');
-                                    //reader.close()
+                                    reader.close()
                                     pcsc.close()
                                     return;
                                 }
@@ -269,7 +270,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     log.error('Error(', reader.name, '):', e.message)
 
                                     browserWindow.webContents.send('display-error');
-                                    //reader.close()
+                                    reader.close()
                                     pcsc.close()
                                     return;
                                 }
@@ -284,7 +285,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     log.error('Error(', reader.name, '):', e.message)
 
                                     browserWindow.webContents.send('display-error');
-                                    //reader.close()
+                                    reader.close()
                                     pcsc.close()
                                     return;
                                 }
@@ -296,7 +297,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     log.error('Error(', reader.name, '):', e.message)
 
                                     browserWindow.webContents.send('display-error');
-                                    //reader.close()
+                                    reader.close()
                                     pcsc.close()
                                 }
 
@@ -306,7 +307,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     log.error('Error(', reader.name, '):', e.message)
 
                                     browserWindow.webContents.send('display-error');
-                                    //reader.close()
+                                    reader.close()
                                     pcsc.close()
                                     return;
                                 }
@@ -317,13 +318,13 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     log.error('Error(', reader.name, '):', e.message)
 
                                     browserWindow.webContents.send('display-error');
-                                    //reader.close()
+                                    reader.close()
                                     pcsc.close()
                                     return;
                                 }
 
                                 // log.info(allData);
-                                //reader.close()
+                                reader.close()
                                 pcsc.close()
                                 browserWindow.webContents.send('card-data-loaded', allData);
                             })
