@@ -120,7 +120,7 @@ let cardReader;
 
 const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
 
-    log.info('ulazim u citanje kartice')
+    log.info('Initializing card read')
     pcsc = await pcsclite()
 
 
@@ -323,7 +323,6 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                                     return;
                                 }
 
-                                // log.info(allData);
                                 reader.close()
                                 pcsc.close()
                                 browserWindow.webContents.send('card-data-loaded', allData);
@@ -400,9 +399,9 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
         return new Promise((resolve, reject) => {
             reader.transmit(Buffer.from(apu), 1024, protocol, (err, data) => {
                 if (err) {
-                    reject(err) // Reject promise on error
+                    return reject(err) // Reject promise on error
                 } else {
-                    resolve(data) // Resolve with data on success
+                    return resolve(data) // Resolve with data on success
                 }
             })
         })
@@ -415,7 +414,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 if (err) {
                     log.error('Error(', reader.name, '):', err.message)
 
-                    reject('error')
+                    reject(err)
                     return;
                 }
 
@@ -426,7 +425,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 } catch (e) {
                     log.error('Error(', reader.name, '):', e.message)
 
-                    reject('error');
+                    reject(err);
                     return;
                 }
 
@@ -435,7 +434,14 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     log.info('udje document')
                     let fileDocumentData;
                     try {
+                        let error = null
                         fileDocumentData = await readFileDocumentData(reader, apu, protocol)
+                            .catch(err => error = err)
+
+                        if(error){
+                            log.error(error)
+                            throw new Error(error);
+                        }
 
                     } catch (e) {
                         log.error('Error(', reader.name, '):', e.message)
@@ -446,8 +452,17 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     resolve(fileDocumentData)
                 } else if (dataType === 'PERSONAL') {
                     let fileDocumentData;
+                    let error = null
+
                     try {
                         fileDocumentData = await readFilePersonalData(reader, apu, protocol)
+                            .catch(err => error = err)
+
+                        if(error){
+                            log.error(error)
+
+                            throw new Error(error);
+                        }
                     } catch (e) {
                         log.error('Error(', reader.name, '):', e.message)
 
@@ -457,24 +472,40 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     resolve(fileDocumentData)
                 } else if (dataType === 'RESIDENCE') {
                     let fileDocumentData;
+                    let error = null;
                     try {
                         fileDocumentData = await readFileResidenceData(reader, apu, protocol)
+                            .catch(err => error = err)
 
+
+                        if(error){
+                            log.error(error)
+
+                            throw new Error(error);
+                        }
                     } catch (e) {
                         log.error('Error(', reader.name, '):', e.message)
 
-                        reject('error');
+                        reject(e);
                         return;
                     }
                     resolve(fileDocumentData)
                 } else if (dataType === 'IMAGE') {
                     let fileDocumentData;
+                    let error;
                     try {
                         fileDocumentData = await readFileImageData(reader, apu, protocol)
+                            .catch(err => error = err)
+
+                        if(error){
+                            log.error(error)
+
+                            throw new Error(error);
+                        }
                     } catch (e) {
                         log.error('Error(', reader.name, '):', e.message)
 
-                        reject('error');
+                        reject(e);
                         return;
                     }
                     resolve(fileDocumentData)
@@ -487,20 +518,21 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
         return new Promise((resolve, reject) => {
 
             reader.transmit(Buffer.from(apu), 256, protocol, async (err, data) => {
+
                 if (err) {
                     log.error('Error reading header:', err.message)
-                    reject('error');
+                    reject(err);
                     return
                 }
 
                 const rsp = data.subarray(0, data.length - 2)
                 let offset = rsp.length
-                // log.info('ovo je offset')
-                // log.info(offset)
+                log.info('ovo je offset')
+                log.info(offset)
                 let length = rsp.readUInt16LE(2)
 
 
-                // log.info('Data read:', length)
+                log.info('Data read:', length)
 
                 const output = []
                 while (length > 0) {
@@ -516,13 +548,16 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                         reject('apdu');
                         return;
                     }
-                    // log.info({readSize, apu})
+                    log.info({readSize, apu})
 
                     let data;
                     try {
+
                         data = await transmitAsync(reader, protocol, apu)
+                        console.log('ovde')
 
                     } catch (e) {
+                        console.log('ovde 2')
                         log.error('Error(', reader.name, '):', e.message)
                         reject('error')
                         return;
@@ -533,8 +568,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     output.push(...rsp)
 
                 }
-                // log.info('ovo je output')
-                // log.info(output)
+                log.info('ovo je output')
+                log.info(output)
                 let parsedData
                 try {
                     parsedData = parseTLV(Buffer.from(output))
@@ -599,7 +634,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
             reader.transmit(Buffer.from(apu), 256, protocol, async (err, data) => {
                 if (err) {
                     log.error('Error reading header:', err.message)
-                    reject('error');
+                    reject(err);
                     return
                 }
                 const rsp = data.subarray(0, data.length - 2)
@@ -607,11 +642,11 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 let length = rsp.readUInt16LE(2)
 
 
-                // log.info('Data read:', length)
+                log.info('Data read:', length)
 
                 const output = []
                 while (length > 0) {
-                    // log.info('udje u while')
+                    log.info('udje u while')
                     const readSize = Math.min(length, 0xFF)
                     let apu;
                     try {
@@ -619,10 +654,10 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     } catch (e) {
                         log.error('Error(', reader.name, '):', e.message)
 
-                        reject('error');
+                        reject(e.message);
                         return;
                     }
-                    // log.info({readSize, apu})
+                    log.info({readSize, apu})
 
                     let data;
 
@@ -631,7 +666,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     } catch (e) {
                         log.error('Error(', reader.name, '):', e.message)
 
-                        reject('error');
+                        reject(e.message);
                         return;
                     }
                     const rsp = data.subarray(0, data.length - 2)
@@ -640,15 +675,15 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     output.push(...rsp)
 
                 }
-                // log.info('ovo je output')
-                // log.info(output)
+                log.info('ovo je output')
+                log.info(output)
                 let parsedData;
                 try {
                     parsedData = parseTLV(Buffer.from(output));
                 } catch (e) {
                     log.error('Error(', reader.name, '):', e.message)
 
-                    resolve('error');
+                    resolve(e.message);
                     return;
                 }
 
@@ -728,7 +763,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
             reader.transmit(Buffer.from(apu), 256, protocol, async (err, data) => {
                 if (err) {
                     log.error('Error reading header:', err.message)
-                    reject('error');
+                    reject(err);
                     return
                 }
                 const rsp = data.subarray(0, data.length - 2)
@@ -736,11 +771,11 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 let length = rsp.readUInt16LE(2)
 
 
-                // log.info('Data read:', length)
+                log.info('Data read:', length)
 
                 const output = []
                 while (length > 0) {
-                    // log.info('udje u while')
+                    log.info('udje u while')
                     const readSize = Math.min(length, 0xFF)
                     let apu;
 
@@ -749,10 +784,10 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     } catch (e) {
                         log.error('Error(', reader.name, '):', e.message)
 
-                        reject('error');
+                        reject(e.message);
                         return;
                     }
-                    // log.info({readSize, apu})
+                    log.info({readSize, apu})
 
                     let data;
                     try {
@@ -760,7 +795,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     } catch (e) {
                         log.error('Error(', reader.name, '):', e.message)
 
-                        reject('error');
+                        reject(e.message);
                         return;
                     }
                     const rsp = data.subarray(0, data.length - 2)
@@ -769,8 +804,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     output.push(...rsp)
 
                 }
-                // log.info('ovo je output')
-                // log.info(output)
+                log.info('ovo je output')
+                log.info(output)
                 let parsedData;
 
                 try {
@@ -778,7 +813,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 } catch (e) {
                     log.error('Error(', reader.name, '):', e.message)
 
-                    reject('error');
+                    reject(e.message);
                     return;
                 }
 
@@ -886,7 +921,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     } catch (e) {
                         log.error('Error(', reader.name, '):', e.message)
 
-                        reject('error');
+                        reject(e.message);
                         return;
                     }
                     // log.info({readSize, apu})
@@ -897,7 +932,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     } catch (e) {
                         log.error('Error(', reader.name, '):', e.message)
 
-                        reject('error');
+                        reject(e.message);
                         return;
                     }
                     const rsp = data.subarray(0, data.length - 2)
@@ -980,6 +1015,9 @@ ipcMain.on('cancel-card-reader', () => {
 const cancelCardRead = () => {
     if (pcsc) {
         pcsc.close();
+    }
+    if(cardReader){
+        cardReader.close()
     }
 
 }
