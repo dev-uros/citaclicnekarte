@@ -1,5 +1,4 @@
 export async function buildAPDU(cla, ins, p1, p2, data, ne) {
-
     let length = data.length
 
     if (length > 0xFFFF) {

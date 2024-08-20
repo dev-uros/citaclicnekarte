@@ -22,65 +22,56 @@ export async function readImage(reader, apu, protocol) {
             }
             log.info('ovo je offset');
             log.info(offset)
-            let length = rsp.readUInt16LE(2)
 
 
-            // log.info('Data read:', length)
+            try {
+                let length = rsp.readUInt16LE(2)
 
-            const output = []
-            while (length > 0) {
-                // log.info('udje u while')
-                const readSize = Math.min(length, 0xFF)
-                let apu;
 
-                try {
-                    apu = await buildAPDU(0x00, 0xB0, (0xFF00 & offset) >> 8, offset & 0xFF, [], readSize)
-                } catch (e) {
-                    log.error('Error(', reader.name, '):', e.message)
 
-                    return reject(e.message);
+                const output = []
+                while (length > 0) {
+                    // log.info('udje u while')
+                    const readSize = Math.min(length, 0xFF)
+                    const apu = await buildAPDU(0x00, 0xB0, (0xFF00 & offset) >> 8, offset & 0xFF, [], readSize)
+
+                    // log.info({readSize, apu})
+
+                    const data = await transmitAsync(reader, protocol, apu)
+
+                    const rsp = data.subarray(0, data.length - 2)
+                    offset += rsp.length
+                    length -= rsp.length
+                    output.push(...rsp)
 
                 }
-                // log.info({readSize, apu})
+                const imageBuffer = Buffer.from(output.slice(4)); // Slice the first 4 bytes if needed
 
-                let data;
-                try {
-                    data = await transmitAsync(reader, protocol, apu)
-                } catch (e) {
-                    log.error('Error(', reader.name, '):', e.message)
+                // log.info('Final image buffer length:', imageBuffer.length);
+                // log.info('First few bytes of the image buffer:', imageBuffer.subarray(0, 10));
 
-                    reject(e.message);
-                    return;
-                }
-                const rsp = data.subarray(0, data.length - 2)
-                offset += rsp.length
-                length -= rsp.length
-                output.push(...rsp)
+                // Process image buffer using sharp
+                await Jimp.read(imageBuffer)
+                    .then((image) => {
+                        image.getBuffer(Jimp.MIME_JPEG, (err, decodedImageBuffer) => {
+                            if (err) {
+                                log.error('Error decoding image with Jimp:', err);
+                                return reject(err);
+                            } else {
+                                console.log('dosao do slike')
+                                return resolve(decodedImageBuffer.toString('base64'));
+                            }
+                        });
+                    })
+                    .catch((err) => {
 
-            }
-            const imageBuffer = Buffer.from(output.slice(4)); // Slice the first 4 bytes if needed
-
-            // log.info('Final image buffer length:', imageBuffer.length);
-            // log.info('First few bytes of the image buffer:', imageBuffer.subarray(0, 10));
-
-            // Process image buffer using sharp
-            await Jimp.read(imageBuffer)
-                .then((image) => {
-                    image.getBuffer(Jimp.MIME_JPEG, (err, decodedImageBuffer) => {
-                        if (err) {
-                            log.error('Error decoding image with Jimp:', err);
-                            reject(err);
-                        } else {
-                            console.log('dosao do slike')
-                            return resolve(decodedImageBuffer.toString('base64'));
-                        }
+                        log.error('Error reading image with Jimp:', err);
+                        return reject(err);
                     });
-                })
-                .catch((err) => {
+            }catch (e){
+                return reject(e);
+            }
 
-                    log.error('Error reading image with Jimp:', err);
-                    reject(err);
-                });
 
 
         })

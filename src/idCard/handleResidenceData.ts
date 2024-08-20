@@ -5,57 +5,24 @@ import {readFilePersonalData} from "./readFilePersonalData";
 import {readFileResidencelData} from "./readFileResidencelData";
 
 
-export async function handleResidenceData(pcsc, reader, protocol, browserWindow) {
+export async function handleResidenceData(pcsc, reader, protocol) {
     const residenceDataLocation = Buffer.from([0x0F, 0x04])
 
-    let residenceDataLocationApdu;
-    try {
-        residenceDataLocationApdu = await buildAPDU(0x00, 0xA4, 0x08, 0x00, residenceDataLocation, 4)
-    } catch (e) {
-        log.error('Error(', reader.name, '):', e.message)
+    const residenceDataLocationApdu = await buildAPDU(0x00, 0xA4, 0x08, 0x00, residenceDataLocation, 4)
 
-        browserWindow.webContents.send('display-error');
-        reader.close()
-        pcsc.close()
-        return;
-    }
     //select file
 
-    try {
-        await selectFile(reader, protocol, residenceDataLocationApdu)
-    } catch (e) {
-        browserWindow.webContents.send('display-error');
-        reader.close()
-        pcsc.close()
-        return;
-    }
-
+    await selectFile(reader, protocol, residenceDataLocationApdu)
 
     //generate read file apu
     const readSize = Math.min(4, 0xFF)
-    let apu
-    try {
-        apu = await buildAPDU(0x00, 0xB0, (0xFF00 & 0) >> 8, 0 & 0xFF, [], readSize)
-    } catch (e) {
-        browserWindow.webContents.send('display-error');
-        reader.close()
-        pcsc.close()
-        return;
-    }
+    const apu = await buildAPDU(0x00, 0xB0, (0xFF00 & 0) >> 8, 0 & 0xFF, [], readSize)
 
     //read file
-    try {
+    console.log('dodjem do generisanja personal data')
+    console.log('LOGUJEM NIZ Residence DATA')
 
-        console.log('dodjem do generisanja personal data')
-        console.log('LOGUJEM NIZ Residence DATA')
+    return await readFileResidencelData(reader, apu, protocol);
 
-        return await readFileResidencelData(reader, apu, protocol);
-
-    } catch (e) {
-        browserWindow.webContents.send('display-error');
-        reader.close()
-        pcsc.close()
-        return;
-    }
 
 }

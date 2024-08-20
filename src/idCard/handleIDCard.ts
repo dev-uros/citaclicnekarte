@@ -11,74 +11,42 @@ export async function handleIDCard(pcsc, reader, protocol, browserWindow) {
 
     log.info('Protocol(', reader.name, '):', protocol)
 
-
-    // INIT CARD
-    try {
-        await initCard(pcsc, reader, protocol, browserWindow);
-
-    } catch (e) {
-        throw new Error(e);
-    }
-    log.info('ID CARD INITIATED')
+    log.info('Initializing ID card')
+    await initCard(pcsc, reader, protocol, browserWindow);
 
     //HANDLE CARD DATA
-    let cardData;
-    try {
-        cardData = await handleCardData(pcsc, reader, protocol, browserWindow)
-    } catch (e) {
-        throw new Error(e);
+    log.info('Reading Card Data')
+    const cardData = await handleCardData(pcsc, reader, protocol)
 
-    }
 
     //HANDLE PERSONAL DATA
-    let personalData;
-    try {
-        personalData = await handlePersonalData(pcsc, reader, protocol, browserWindow)
-    } catch (e) {
-        throw new Error(e);
-    }
+    log.info('Reading Personal Data')
+
+    const personalData = await handlePersonalData(pcsc, reader, protocol)
+
 
     //HANDLE RESIDENCE DATA
-    let residenceData
-    try {
-        residenceData = await handleResidenceData(pcsc, reader, protocol, browserWindow)
-    } catch (e) {
-        throw new Error(e);
-    }
+    log.info('Reading Residence Data')
+    const residenceData = await handleResidenceData(pcsc, reader, protocol)
 
 
     //HANDLE IMAGE
-    let image;
-    try {
-        image = await handleImage(pcsc, reader, protocol, browserWindow)
-    } catch (e) {
-        throw new Error(e);
-    }
+    log.info('Reading Image Data')
+
+    const image = await handleImage(pcsc, reader, protocol)
+
+    log.info('Formatting card data')
     const allData = formatAllCardData(cardData, personalData, residenceData, image);
 
     //CREATE PDF
-    try {
-        allData.pdf = await createPdf(allData);
-    } catch (e) {
-        log.error('Error(', reader.name, '):', e.message)
-
-        browserWindow.webContents.send('display-error');
-        reader.close()
-        pcsc.close()
-        return;
-    }
+    log.info('Creating PDF')
+    allData.pdf = await createPdf(allData);
 
     //PDF TO BASE64
-    try {
-        allData.pdfBase64 = uint8ArrayToBase64(allData.pdf);
-    } catch (e) {
-        log.error('Error(', reader.name, '):', e.message)
+    log.info('Creating PDF base64')
 
-        browserWindow.webContents.send('display-error');
-        reader.close()
-        pcsc.close()
-        return;
-    }
+    allData.pdfBase64 = uint8ArrayToBase64(allData.pdf);
+
 
     reader.close()
     pcsc.close()

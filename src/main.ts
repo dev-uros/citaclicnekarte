@@ -291,6 +291,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
 
                                         return;
                                     }catch (e){
+                                        log.error('usao u error')
+                                        log.error(e);
                                         log.error('Error(', reader.name, '):', e)
 
                                         browserWindow.webContents.send('display-error');
