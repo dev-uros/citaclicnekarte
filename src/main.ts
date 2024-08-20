@@ -7,6 +7,14 @@ import Jimp from "jimp";
 import * as fs from "fs";
 import log from 'electron-log/main';
 import {updateElectronApp, UpdateSourceType} from "update-electron-app";
+import iconv from 'iconv-lite';
+import {APOLLO_ATR, GEMALTO_ATR_1, GEMALTO_ATR_2, GEMALTO_ATR_3, GEMALTO_ATR_4, MEDICAL_ATR} from "./utils/constants";
+import {testGemalto} from "./utils/testGemalto";
+import {testMedCard} from "./utils/testMedCard";
+import {handleIDCard} from "./idCard/handleIDCard";
+import {downloadIdCardPdf} from "./idCard/downloadIdCardPdf";
+import {CardData} from "./preload";
+import {printIdCardPdf} from "./idCard/printIdCardPdf";
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
     app.quit();
@@ -45,7 +53,7 @@ const createWindow = () => {
     })
 
     console.log(app.isPackaged)
-    if(!app.isPackaged){
+    if (!app.isPackaged) {
         mainWindow.webContents.openDevTools({
             mode: 'detach',
         });
@@ -78,45 +86,146 @@ app.on('activate', () => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
-const allData = {
-    documentData: {
-        DocumentNumber: '',
-        DocumentType: '',
-        DocumentSerialNumber: '',
-        IssuingDate: '',
-        ExpiryDate: '',
-        IssuingAuthority: ''
-    },
-    personalData: {
-        PersonalNumber: '',
-        Surname: '',
-        GivenName: '',
-        ParentGivenName: '',
-        Sex: '',
-        PlaceOfBirth: '',
-        CommunityOfBirth: '',
-        StateOfBirth: '',
-        DateOfBirth: ''
-    },
-    residenceData: {
-        State: '',
-        Community: '',
-        Place: '',
-        Street: '',
-        AddressNumber: '',
-        AddressLetter: '',
-        AddressEntrance: '',
-        AddressFloor: '',
-        AddressApartmentNumber: '',
-        AddressDate: ''
-    },
-    image: '',
-    pdf: '',
-    pdfBase64: ''
-}
 
 let pcsc;
 let cardReader;
+let cardType;
+let allData: CardData;
+// Function to determine the card type
+async function determineCardType(smartCardAtr: Buffer, reader, protocol) {
+    let card;
+    let tempIdCard;
+    let tempMedCard;
+
+    log.info('Determining inserted card type')
+    try {
+        log.info('Testing is gemalto')
+
+        await testGemalto(reader, protocol);
+
+        log.info('Card determined - gemalto')
+
+        tempIdCard = true;
+    } catch (e) {
+        log.info('Card not gemalto')
+        tempIdCard = false;
+    }
+    try {
+        log.info('Testing is med card')
+
+        tempMedCard = await testMedCard(reader, protocol);
+
+        if (tempMedCard) {
+            log.info('Card determined - med card')
+        } else {
+            log.info('Card not med card')
+        }
+
+    } catch (e) {
+        log.info('Card not med card')
+        tempMedCard = false;
+    }
+
+    log.info('Checking smart card atr')
+    if (smartCardAtr.equals(GEMALTO_ATR_1)) {
+        log.info('Smart card atr detected: GEMALTO_ATR_1')
+
+        log.info('Checking is card possible id card')
+
+        if (tempIdCard) {
+            log.info('Card is id card')
+
+            card = 'ID_CARD'
+        } else {
+            log.info('Card is vehicle card')
+
+            card = 'VEHICLE_CARD'
+        }
+    } else if (smartCardAtr.equals(GEMALTO_ATR_2)) {
+        log.info('Smart card atr detected: GEMALTO_ATR_2')
+
+        log.info('Checking is card possible med card or id card or vehicle card')
+
+        if (tempMedCard) {
+            log.info('Card is med card')
+
+            card = 'MED_CARD'
+        } else if (tempIdCard) {
+
+            log.info('Card is id card')
+
+            card = 'ID_CARD'
+        } else {
+            log.info('Card is vehicle card')
+
+            card = 'VEHICLE_CARD'
+        }
+    } else if (smartCardAtr.equals(GEMALTO_ATR_3)) {
+        log.info('Smart card atr detected: GEMALTO_ATR_3')
+
+        log.info('Checking is card possible med card or id card or vehicle card')
+
+        if (tempMedCard) {
+            log.info('Card is med card')
+
+            card = 'MED_CARD'
+        } else if (tempIdCard) {
+
+            log.info('Card is id card')
+
+            card = 'ID_CARD'
+        } else {
+            log.info('Card is vehicle card')
+
+            card = 'VEHICLE_CARD'
+        }
+    } else if (smartCardAtr.equals(GEMALTO_ATR_4)) {
+        log.info('Smart card atr detected: GEMALTO_ATR_4')
+
+        log.info('Checking is card possible med card or id card or vehicle card')
+
+        if (tempMedCard) {
+            log.info('Card is med card')
+
+            card = 'MED_CARD'
+        } else if (tempIdCard) {
+
+            log.info('Card is id card')
+
+            card = 'ID_CARD'
+        } else {
+            log.info('Card is vehicle card')
+
+            card = 'VEHICLE_CARD'
+        }
+    } else if (smartCardAtr.equals(APOLLO_ATR)) {
+        log.info('Smart card atr detected: APOLLO_ATR')
+
+        log.info('Checking is card possible med card or id card or vehicle card')
+
+        if (tempMedCard) {
+            log.info('Card is med card')
+
+            card = 'MED_CARD'
+        } else if (tempIdCard) {
+
+            log.info('Card is id card')
+
+            card = 'ID_CARD'
+        } else {
+            log.info('Card is vehicle card')
+
+            card = 'VEHICLE_CARD'
+        }
+    } else if (smartCardAtr.equals(MEDICAL_ATR)) {
+        log.info('Smart card atr detected: MEDICAL_ATR')
+        card = 'MED_CARD'
+    } else {
+        throw new Error(`Unknown card type`);
+    }
+
+    return card;
+}
 
 const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
 
@@ -136,7 +245,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
             log.error('Error(', reader.name, '):', err.message)
         })
 
-        reader.on('status', status => {
+        reader.on('status', (status) => {
             log.info('Status(', reader.name, '):', status)
             const changes = reader.state ^ status.state
             if (changes) {
@@ -159,6 +268,8 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     })
                 } else if ((changes & reader.SCARD_STATE_PRESENT) && (status.state & reader.SCARD_STATE_PRESENT)) {
                     //emituj event loading
+                    console.log('LOGUJEM STATUS')
+                    console.log();
                     log.info('Card inserted')
                     browserWindow.webContents.send('card-inserted-into-reader');
 
@@ -171,164 +282,341 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                             pcsc.close()
                             return;
                         } else {
-                            log.info('Protocol(', reader.name, '):', protocol)
-
-                            // Init card
-
-                            const data = Buffer.from([0xF3, 0x81, 0x00, 0x00, 0x02, 0x53, 0x45, 0x52, 0x49, 0x44, 0x01])
-                            let apu;
                             try {
-                                apu = buildAPDU(0x00, 0xA4, 0x04, 0x00, data, 0)
-                            } catch (e) {
-                                log.error('Error(', reader.name, '):', err.message)
+                                cardType = await determineCardType(status.atr, reader, protocol)
+                                if(cardType === 'ID_CARD'){
 
+                                    try {
+                                        allData = await handleIDCard(pcsc, reader, protocol, browserWindow)
+
+                                        return;
+                                    }catch (e){
+                                        log.error('Error(', reader.name, '):', e)
+
+                                        browserWindow.webContents.send('display-error');
+                                        reader.close()
+                                        pcsc.close()
+                                        return;
+                                    }
+
+                                }else if(cardType === 'MED_CARD'){
+
+                                }else{
+                                    browserWindow.webContents.send('display-error');
+                                    reader.close()
+                                    pcsc.close()
+                                    return;
+                                }
+                            } catch (e) {
+                                console.log(e);
                                 browserWindow.webContents.send('display-error');
                                 reader.close()
                                 pcsc.close()
                                 return;
                             }
 
-                            reader.transmit(apu, 256, protocol, async (err, data) => {
-                                if (err) {
-                                    log.error('Error(', reader.name, '):', err.message)
-
-                                    browserWindow.webContents.send('display-error');
-                                    reader.close()
-                                    pcsc.close()
-                                    return;
-                                }
-
-                                const cardDataLocation = Buffer.from([0x0F, 0x02])
-
-                                let cardDataLocationApdu
-                                try {
-                                    cardDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, cardDataLocation, 4)
-                                } catch (e) {
-                                    log.error('Error(', reader.name, '):', e.message)
-
-                                    browserWindow.webContents.send('display-error');
-                                    reader.close()
-                                    pcsc.close()
-                                    return;
-                                }
-                                try {
-                                    await generateCardData(reader, protocol, cardDataLocation, cardDataLocationApdu, 'DOCUMENT')
-
-                                } catch (e) {
-                                    log.error('Error(', reader.name, '):', e.message)
-
-                                    browserWindow.webContents.send('display-error');
-                                    reader.close()
-                                    pcsc.close()
-                                    return;
-                                }
-
-
-                                const personalDataLocation = Buffer.from([0x0F, 0x03])
-                                let personalDataLocationApdu;
-                                try {
-                                    personalDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, personalDataLocation, 4)
-                                } catch (e) {
-                                    log.error('Error(', reader.name, '):', e.message)
-
-                                    browserWindow.webContents.send('display-error');
-                                    reader.close()
-                                    pcsc.close()
-                                    return;
-                                }
-
-                                try {
-                                    await generateCardData(reader, protocol, personalDataLocation, personalDataLocationApdu, 'PERSONAL')
-
-                                } catch (e) {
-                                    log.error('Error(', reader.name, '):', e.message)
-
-                                    browserWindow.webContents.send('display-error');
-                                    reader.close()
-                                    pcsc.close()
-                                    return;
-                                }
-
-
-                                const residenceDataLocation = Buffer.from([0x0F, 0x04])
-
-                                let residenceDataLocationApdu;
-                                try {
-                                    residenceDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, residenceDataLocation, 4)
-                                } catch (e) {
-                                    log.error('Error(', reader.name, '):', e.message)
-
-                                    browserWindow.webContents.send('display-error');
-                                    reader.close()
-                                    pcsc.close()
-                                    return;
-                                }
-
-                                try {
-                                    await generateCardData(reader, protocol, residenceDataLocation, residenceDataLocationApdu, 'RESIDENCE')
-                                } catch (e) {
-                                    log.error('Error(', reader.name, '):', e.message)
-
-                                    browserWindow.webContents.send('display-error');
-                                    reader.close()
-                                    pcsc.close()
-                                    return;
-                                }
-
-                                const imageDataLocation = Buffer.from([0x0F, 0x06])
-
-                                let imageDataLocationApdu;
-
-                                try {
-                                    imageDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, imageDataLocation, 4)
-                                } catch (e) {
-                                    log.error('Error(', reader.name, '):', e.message)
-
-                                    browserWindow.webContents.send('display-error');
-                                    reader.close()
-                                    pcsc.close()
-                                    return;
-                                }
-
-                                try {
-                                    await generateCardData(reader, protocol, imageDataLocation, imageDataLocationApdu, 'IMAGE')
-
-                                } catch (e) {
-                                    log.error('Error(', reader.name, '):', e.message)
-
-                                    browserWindow.webContents.send('display-error');
-                                    reader.close()
-                                    pcsc.close()
-                                }
-
-                                try {
-                                    allData.pdf = await createPdf();
-                                } catch (e) {
-                                    log.error('Error(', reader.name, '):', e.message)
-
-                                    browserWindow.webContents.send('display-error');
-                                    reader.close()
-                                    pcsc.close()
-                                    return;
-                                }
-
-                                try {
-                                    allData.pdfBase64 = uint8ArrayToBase64(allData.pdf);
-                                } catch (e) {
-                                    log.error('Error(', reader.name, '):', e.message)
-
-                                    browserWindow.webContents.send('display-error');
-                                    reader.close()
-                                    pcsc.close()
-                                    return;
-                                }
-
-                                reader.close()
-                                pcsc.close()
-                                browserWindow.webContents.send('card-data-loaded', allData);
-                            })
-
                         }
+
+                        // if (err) {
+
+                        // } else {
+                        //     log.info('Protocol(', reader.name, '):', protocol)
+                        //
+                        //     // Init card
+                        //
+                        //     const data = Buffer.from([0xF3, 0x81, 0x00, 0x00, 0x02, 0x53, 0x45, 0x52, 0x49, 0x44, 0x01])
+                        //     let apu;
+                        //     try {
+                        //         apu = buildAPDU(0x00, 0xA4, 0x04, 0x00, data, 0)
+                        //     } catch (e) {
+                        //         log.error('Error(', reader.name, '):', err.message)
+                        //
+                        //         browserWindow.webContents.send('display-error');
+                        //         reader.close()
+                        //         pcsc.close()
+                        //         return;
+                        //     }
+                        //
+                        //     reader.transmit(apu, 256, protocol, async (err, data) => {
+                        //         if (err) {
+                        //             log.error('Error(', reader.name, '):', err.message)
+                        //
+                        //             browserWindow.webContents.send('display-error');
+                        //             reader.close()
+                        //             pcsc.close()
+                        //             return;
+                        //         }
+                        //
+                        //         if(cardType === 'ID_CARD'){
+                        //             //PERSONAL CARD
+                        //             const cardDataLocation = Buffer.from([0x0F, 0x02])
+                        //
+                        //             let cardDataLocationApdu
+                        //             try {
+                        //                 cardDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, cardDataLocation, 4)
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //             try {
+                        //                 await generateCardData(reader, protocol, cardDataLocation, cardDataLocationApdu, 'DOCUMENT')
+                        //
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //
+                        //             const personalDataLocation = Buffer.from([0x0F, 0x03])
+                        //             let personalDataLocationApdu;
+                        //             try {
+                        //                 personalDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, personalDataLocation, 4)
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //             try {
+                        //                 await generateCardData(reader, protocol, personalDataLocation, personalDataLocationApdu, 'PERSONAL')
+                        //
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //
+                        //             const residenceDataLocation = Buffer.from([0x0F, 0x04])
+                        //
+                        //             let residenceDataLocationApdu;
+                        //             try {
+                        //                 residenceDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, residenceDataLocation, 4)
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //             try {
+                        //                 await generateCardData(reader, protocol, residenceDataLocation, residenceDataLocationApdu, 'RESIDENCE')
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //             const imageDataLocation = Buffer.from([0x0F, 0x06])
+                        //
+                        //             let imageDataLocationApdu;
+                        //
+                        //             try {
+                        //                 imageDataLocationApdu = buildAPDU(0x00, 0xA4, 0x08, 0x00, imageDataLocation, 4)
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //             try {
+                        //                 await generateCardData(reader, protocol, imageDataLocation, imageDataLocationApdu, 'IMAGE')
+                        //
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //             }
+                        //
+                        //             try {
+                        //                 allData.pdf = await createPdf();
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //             try {
+                        //                 allData.pdfBase64 = uint8ArrayToBase64(allData.pdf);
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //             reader.close()
+                        //             pcsc.close()
+                        //             browserWindow.webContents.send('card-data-loaded', allData);
+                        //         }else if(cardType === 'MED_CARD'){
+                        //             const s1 = Buffer.from([0xF3, 0x81, 0x00, 0x00, 0x02, 0x53, 0x45, 0x52, 0x56, 0x53, 0x5A, 0x4B, 0x01]);
+                        //             const apu = buildAPDU(0x00, 0xA4, 0x04, 0x00, s1, 0)
+                        //
+                        //             let e;
+                        //             await transmitAsync(reader, protocol, apu)
+                        //                 .catch(err => {
+                        //                     e = err;
+                        //                 })
+                        //
+                        //             if (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //             const medicalCardDataFileLocation = Buffer.from([0x0D, 0x01]);
+                        //
+                        //             let medicalCardDataFileLocationApdu;
+                        //             try {
+                        //                 medicalCardDataFileLocationApdu = buildAPDU(0x00, 0xA4, 0x00, 0x00, medicalCardDataFileLocation, 0)
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //             try {
+                        //
+                        //                 await generateCardData(reader, protocol, medicalCardDataFileLocation, medicalCardDataFileLocationApdu, 'MEDICAL_CARD_DATA')
+                        //
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //
+                        //             const medicalCardPersonalDataFileLocation = Buffer.from([0x0D, 0x02]);
+                        //
+                        //             let medicalCardPersonalDataFileLocationApdu;
+                        //             try {
+                        //                 medicalCardPersonalDataFileLocationApdu = buildAPDU(0x00, 0xA4, 0x00, 0x00, medicalCardPersonalDataFileLocation, 0)
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //             try {
+                        //
+                        //                 await generateCardData(reader, protocol, medicalCardPersonalDataFileLocation, medicalCardPersonalDataFileLocationApdu, 'MEDICAL_PERSONAL_DATA')
+                        //
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //
+                        //             const medicalCardValidityDataFileLocation = Buffer.from([0x0D, 0x03]);
+                        //
+                        //             let medicalCardValidityDataFileLocationApdu;
+                        //             try {
+                        //                 medicalCardValidityDataFileLocationApdu = buildAPDU(0x00, 0xA4, 0x00, 0x00, medicalCardValidityDataFileLocation, 0)
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //             try {
+                        //
+                        //                 await generateCardData(reader, protocol, medicalCardValidityDataFileLocation, medicalCardValidityDataFileLocationApdu, 'MEDICAL_VALIDITY_DATA')
+                        //
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //
+                        //             const medicalCardResidenceAndInsuranceDataFileLocation = Buffer.from([0x0D, 0x04]);
+                        //
+                        //             let medicalCardResidenceAndInsuranceDataFileLocationApdu;
+                        //             try {
+                        //                 medicalCardResidenceAndInsuranceDataFileLocationApdu = buildAPDU(0x00, 0xA4, 0x00, 0x00, medicalCardResidenceAndInsuranceDataFileLocation, 0)
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //             try {
+                        //
+                        //                 await generateCardData(reader, protocol, medicalCardResidenceAndInsuranceDataFileLocation, medicalCardResidenceAndInsuranceDataFileLocationApdu, 'MEDICAL_RESIDENCE_AND_INSURANCE_DATA')
+                        //
+                        //             } catch (e) {
+                        //                 log.error('Error(', reader.name, '):', e.message)
+                        //
+                        //                 browserWindow.webContents.send('display-error');
+                        //                 reader.close()
+                        //                 pcsc.close()
+                        //                 return;
+                        //             }
+                        //
+                        //         }else{
+                        //             browserWindow.webContents.send('display-error');
+                        //             reader.close()
+                        //             pcsc.close()
+                        //             return;
+                        //         }
+                        //
+                        //     })
+                        //
+                        // }
                     })
                 }
             }
@@ -438,7 +726,7 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                         fileDocumentData = await readFileDocumentData(reader, apu, protocol)
                             .catch(err => error = err)
 
-                        if(error){
+                        if (error) {
                             log.error(error)
                             throw new Error(error);
                         }
@@ -454,11 +742,13 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     let fileDocumentData;
                     let error = null
 
+                    log.info('udje licni podaci')
+
                     try {
                         fileDocumentData = await readFilePersonalData(reader, apu, protocol)
                             .catch(err => error = err)
 
-                        if(error){
+                        if (error) {
                             log.error(error)
 
                             throw new Error(error);
@@ -473,12 +763,14 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 } else if (dataType === 'RESIDENCE') {
                     let fileDocumentData;
                     let error = null;
+                    log.info('udje podaci prebivalista')
+
                     try {
                         fileDocumentData = await readFileResidenceData(reader, apu, protocol)
                             .catch(err => error = err)
 
 
-                        if(error){
+                        if (error) {
                             log.error(error)
 
                             throw new Error(error);
@@ -491,13 +783,15 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                     }
                     resolve(fileDocumentData)
                 } else if (dataType === 'IMAGE') {
+                    log.info('udje slika')
+
                     let fileDocumentData;
                     let error;
                     try {
                         fileDocumentData = await readFileImageData(reader, apu, protocol)
                             .catch(err => error = err)
 
-                        if(error){
+                        if (error) {
                             log.error(error)
 
                             throw new Error(error);
@@ -509,6 +803,83 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                         return;
                     }
                     resolve(fileDocumentData)
+                } else if (dataType === 'MEDICAL_CARD_DATA') {
+
+                    let medicalCardData;
+                    let error;
+                    try {
+                        medicalCardData = await readMedicalCardData(reader, apu, protocol)
+                            .catch(err => error = err)
+
+                        if (error) {
+                            log.error(error)
+
+                            throw new Error(error);
+                        }
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e);
+                        return;
+                    }
+                    resolve(medicalCardData)
+                } else if (dataType === 'MEDICAL_PERSONAL_DATA') {
+                    let medicalPersonalData;
+                    let error;
+                    try {
+                        medicalPersonalData = await readMedicalPersonalData(reader, apu, protocol)
+                            .catch(err => error = err)
+
+                        if (error) {
+                            log.error(error)
+
+                            throw new Error(error);
+                        }
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e);
+                        return;
+                    }
+                    resolve(medicalPersonalData)
+                } else if (dataType === 'MEDICAL_VALIDITY_DATA') {
+                    let medicalValidityData;
+                    let error;
+                    try {
+                        medicalValidityData = await readMedicalValidityData(reader, apu, protocol)
+                            .catch(err => error = err)
+
+                        if (error) {
+                            log.error(error)
+
+                            throw new Error(error);
+                        }
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e);
+                        return;
+                    }
+                    resolve(medicalValidityData)
+                } else if (dataType === 'MEDICAL_RESIDENCE_AND_INSURANCE_DATA') {
+                    let medicalResidenceAndInsuranceData;
+                    let error;
+                    try {
+                        medicalResidenceAndInsuranceData = await readMedicalResidenceAndValidityData(reader, apu, protocol)
+                            .catch(err => error = err)
+
+                        if (error) {
+                            log.error(error)
+
+                            throw new Error(error);
+                        }
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e);
+                        return;
+                    }
+                    resolve(medicalResidenceAndInsuranceData)
                 }
             })
         })
@@ -529,6 +900,11 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 let offset = rsp.length
                 log.info('ovo je offset')
                 log.info(offset)
+                if (offset < 3) {
+                    log.error('Offset too short:', offset)
+                    reject('error');
+                    return
+                }
                 let length = rsp.readUInt16LE(2)
 
 
@@ -639,6 +1015,13 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 }
                 const rsp = data.subarray(0, data.length - 2)
                 let offset = rsp.length
+                if (offset < 3) {
+                    log.error('Offset too short:', offset)
+                    reject('error');
+                    return
+                }
+                log.info('ovo je offset');
+                log.info(offset)
                 let length = rsp.readUInt16LE(2)
 
 
@@ -768,6 +1151,13 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 }
                 const rsp = data.subarray(0, data.length - 2)
                 let offset = rsp.length
+                if (offset < 3) {
+                    log.error('Offset too short:', offset)
+                    reject('error');
+                    return
+                }
+                log.info('ovo je offset');
+                log.info(offset)
                 let length = rsp.readUInt16LE(2)
 
 
@@ -905,6 +1295,13 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
                 }
                 let rsp = data.subarray(0, data.length - 2)
                 let offset = rsp.length
+                if (offset < 3) {
+                    log.error('Offset too short:', offset)
+                    reject('error');
+                    return
+                }
+                log.info('ovo je offset');
+                log.info(offset)
                 let length = rsp.readUInt16LE(2)
 
 
@@ -971,6 +1368,546 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
 
     }
 
+    function readMedicalCardData(reader, apu, protocol) {
+        return new Promise((resolve, reject) => {
+            reader.transmit(Buffer.from(apu), 1024, protocol, async (err, data) => {
+                if (err) {
+                    log.error('Error reading header:', err.message)
+                    reject(err);
+                    return
+                }
+                const rsp = data.subarray(0, data.length - 2)
+                let offset = rsp.length
+                if (offset < 3) {
+                    log.error('Offset too short:', offset)
+                    reject('error');
+                    return
+                }
+                log.info('ovo je offset');
+                log.info(offset)
+                let length = rsp.readUInt16LE(2)
+
+
+                log.info('Data read:', length)
+
+                const output = []
+                while (length > 0) {
+                    log.info('udje u while')
+                    const readSize = Math.min(length, 0xFF)
+                    let apu;
+
+                    try {
+                        apu = buildAPDU(0x00, 0xB0, (0xFF00 & offset) >> 8, offset & 0xFF, [], readSize)
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e.message);
+                        return;
+                    }
+                    log.info({readSize, apu})
+
+                    let data;
+                    try {
+                        data = await transmitAsync(reader, protocol, apu)
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e.message);
+                        return;
+                    }
+                    const rsp = data.subarray(0, data.length - 2)
+                    offset += rsp.length
+                    length -= rsp.length
+                    output.push(...rsp)
+
+                }
+                log.info('ovo je output')
+                log.info(output)
+                let parsedData;
+
+                try {
+                    parsedData = parseTLV(Buffer.from(output))
+                } catch (e) {
+                    log.error('Error(', reader.name, '):', e.message)
+
+                    reject(e.message);
+                    return;
+                }
+
+
+                const dataArray = []
+
+                const InsurerName = {value: ''}
+                descramble(parsedData, 1553)
+                assignField(parsedData, 1553, InsurerName)
+                dataArray.push({InsurerName: InsurerName.value})
+
+                const InsurerID = {value: ''}
+                assignField(parsedData, 1554, InsurerID)
+                dataArray.push({InsurerID: InsurerID.value})
+
+                const CardId = {value: ''}
+                assignField(parsedData, 1555, CardId)
+                dataArray.push({CardId: CardId.value})
+
+
+                const CardIssueDate = {value: ''}
+                assignField(parsedData, 1557, CardIssueDate)
+                dataArray.push({CardIssueDate: formatDateString(CardIssueDate.value)})
+
+
+                const CardExpiryDate = {value: ''}
+                assignField(parsedData, 1558, CardExpiryDate)
+                dataArray.push({CardExpiryDate: formatDateString(CardExpiryDate.value)})
+
+
+                const Language = {value: ''}
+                assignField(parsedData, 1560, Language)
+                dataArray.push({Language: Language.value})
+
+                console.log(dataArray);
+                resolve()
+            })
+        })
+
+    }
+
+    function readMedicalPersonalData(reader, apu, protocol) {
+        return new Promise((resolve, reject) => {
+            reader.transmit(Buffer.from(apu), 1024, protocol, async (err, data) => {
+                if (err) {
+                    log.error('Error reading header:', err.message)
+                    reject(err);
+                    return
+                }
+                const rsp = data.subarray(0, data.length - 2)
+                let offset = rsp.length
+                if (offset < 3) {
+                    log.error('Offset too short:', offset)
+                    reject('error');
+                    return
+                }
+                log.info('ovo je offset');
+                log.info(offset)
+                let length = rsp.readUInt16LE(2)
+
+
+                log.info('Data read:', length)
+
+                const output = []
+                while (length > 0) {
+                    log.info('udje u while')
+                    const readSize = Math.min(length, 0xFF)
+                    let apu;
+
+                    try {
+                        apu = buildAPDU(0x00, 0xB0, (0xFF00 & offset) >> 8, offset & 0xFF, [], readSize)
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e.message);
+                        return;
+                    }
+                    log.info({readSize, apu})
+
+                    let data;
+                    try {
+                        data = await transmitAsync(reader, protocol, apu)
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e.message);
+                        return;
+                    }
+                    const rsp = data.subarray(0, data.length - 2)
+                    offset += rsp.length
+                    length -= rsp.length
+                    output.push(...rsp)
+
+                }
+                log.info('ovo je output')
+                log.info(output)
+                let parsedData;
+
+                try {
+                    parsedData = parseTLV(Buffer.from(output))
+                } catch (e) {
+                    log.error('Error(', reader.name, '):', e.message)
+
+                    reject(e.message);
+                    return;
+                }
+
+
+                const dataArray = []
+
+
+                const SurnameCyrl = {value: ''}
+                descramble(parsedData, 1570)
+                assignField(parsedData, 1570, SurnameCyrl)
+                dataArray.push({SurnameCyrl: SurnameCyrl.value})
+
+
+                const Surname = {value: ''}
+                descramble(parsedData, 1571)
+                assignField(parsedData, 1571, Surname)
+                dataArray.push({Surname: Surname.value})
+
+
+                const GivenNameCyrl = {value: ''}
+                descramble(parsedData, 1572)
+                assignField(parsedData, 1572, GivenNameCyrl)
+                dataArray.push({GivenNameCyrl: GivenNameCyrl.value})
+
+
+                const GivenName = {value: ''}
+                descramble(parsedData, 1573)
+                assignField(parsedData, 1573, GivenName)
+                dataArray.push({GivenName: GivenName.value})
+
+
+                const DateOfBirth = {value: ''}
+                assignField(parsedData, 1574, DateOfBirth)
+                dataArray.push({DateOfBirth: formatDateString(DateOfBirth.value)})
+
+
+                const InsuranceNumber = {value: ''}
+                assignField(parsedData, 1569, InsuranceNumber)
+                dataArray.push({InsuranceNumber: InsuranceNumber.value})
+
+                console.log(dataArray);
+                resolve()
+            })
+        })
+
+    }
+
+    function readMedicalValidityData(reader, apu, protocol) {
+        return new Promise((resolve, reject) => {
+            reader.transmit(Buffer.from(apu), 1024, protocol, async (err, data) => {
+                if (err) {
+                    log.error('Error reading header:', err.message)
+                    reject(err);
+                    return
+                }
+                const rsp = data.subarray(0, data.length - 2)
+                let offset = rsp.length
+                if (offset < 3) {
+                    log.error('Offset too short:', offset)
+                    reject('error');
+                    return
+                }
+                log.info('ovo je offset');
+                log.info(offset)
+                let length = rsp.readUInt16LE(2)
+
+
+                log.info('Data read:', length)
+
+                const output = []
+                while (length > 0) {
+                    log.info('udje u while')
+                    const readSize = Math.min(length, 0xFF)
+                    let apu;
+
+                    try {
+                        apu = buildAPDU(0x00, 0xB0, (0xFF00 & offset) >> 8, offset & 0xFF, [], readSize)
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e.message);
+                        return;
+                    }
+                    log.info({readSize, apu})
+
+                    let data;
+                    try {
+                        data = await transmitAsync(reader, protocol, apu)
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e.message);
+                        return;
+                    }
+                    const rsp = data.subarray(0, data.length - 2)
+                    offset += rsp.length
+                    length -= rsp.length
+                    output.push(...rsp)
+
+                }
+                log.info('ovo je output')
+                log.info(output)
+                let parsedData;
+
+                try {
+                    parsedData = parseTLV(Buffer.from(output))
+                } catch (e) {
+                    log.error('Error(', reader.name, '):', e.message)
+
+                    reject(e.message);
+                    return;
+                }
+
+
+                const dataArray = []
+
+                const ValidUntil = {value: ''}
+                assignField(parsedData, 1586, ValidUntil)
+                dataArray.push({ValidUntil: formatDateString(ValidUntil.value)})
+
+
+                const PermanentlyValid = {value: ''}
+                assignBoolField(parsedData, 1587, PermanentlyValid)
+                dataArray.push({ValidUntil: PermanentlyValid.value})
+
+                console.log(dataArray);
+                resolve()
+            })
+        })
+
+    }
+
+    function readMedicalResidenceAndValidityData(reader, apu, protocol) {
+        return new Promise((resolve, reject) => {
+            reader.transmit(Buffer.from(apu), 1024, protocol, async (err, data) => {
+                if (err) {
+                    log.error('Error reading header:', err.message)
+                    reject(err);
+                    return
+                }
+                const rsp = data.subarray(0, data.length - 2)
+                let offset = rsp.length
+                if (offset < 3) {
+                    log.error('Offset too short:', offset)
+                    reject('error');
+                    return
+                }
+                log.info('ovo je offset');
+                log.info(offset)
+                let length = rsp.readUInt16LE(2)
+
+
+                log.info('Data read:', length)
+
+                const output = []
+                while (length > 0) {
+                    log.info('udje u while')
+                    const readSize = Math.min(length, 0xFF)
+                    let apu;
+
+                    try {
+                        apu = buildAPDU(0x00, 0xB0, (0xFF00 & offset) >> 8, offset & 0xFF, [], readSize)
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e.message);
+                        return;
+                    }
+                    log.info({readSize, apu})
+
+                    let data;
+                    try {
+                        data = await transmitAsync(reader, protocol, apu)
+                    } catch (e) {
+                        log.error('Error(', reader.name, '):', e.message)
+
+                        reject(e.message);
+                        return;
+                    }
+                    const rsp = data.subarray(0, data.length - 2)
+                    offset += rsp.length
+                    length -= rsp.length
+                    output.push(...rsp)
+
+                }
+                log.info('ovo je output')
+                log.info(output)
+                let parsedData;
+
+                try {
+                    parsedData = parseTLV(Buffer.from(output))
+                } catch (e) {
+                    log.error('Error(', reader.name, '):', e.message)
+
+                    reject(e.message);
+                    return;
+                }
+
+
+                const dataArray = []
+
+
+                const ParentNameCyrl = {value: ''}
+                descramble(parsedData, 1601)
+                assignField(parsedData, 1601, ParentNameCyrl)
+                dataArray.push({ParentNameCyrl: ParentNameCyrl.value})
+
+
+                const ParentName = {value: ''}
+                descramble(parsedData, 1602)
+                assignField(parsedData, 1602, ParentName)
+                dataArray.push({ParentName: ParentNameCyrl.value})
+
+
+                if (parsedData[1603].toString() === "01") {
+                    dataArray.push({Sex: 'Мушко'})
+                } else {
+                    dataArray.push({Sex: 'Женско'})
+                }
+
+
+                const PersonalNumber = {value: ''}
+                assignField(parsedData, 1604, PersonalNumber)
+                dataArray.push({PersonalNumber: PersonalNumber.value})
+
+
+                const AddressStreet = {value: ''}
+                descramble(parsedData, 1605)
+                assignField(parsedData, 1605, AddressStreet)
+                dataArray.push({AddressStreet: AddressStreet.value})
+
+
+                const AddressMunicipality = {value: ''}
+                descramble(parsedData, 1607)
+                assignField(parsedData, 1607, AddressMunicipality)
+                dataArray.push({AddressMunicipality: AddressMunicipality.value})
+
+
+                const AddressTown = {value: ''}
+                descramble(parsedData, 1608)
+                assignField(parsedData, 1608, AddressTown)
+                dataArray.push({AddressTown: AddressTown.value})
+
+
+                const AddressNumber = {value: ''}
+                descramble(parsedData, 1610)
+                assignField(parsedData, 1610, AddressNumber)
+                dataArray.push({AddressNumber: AddressNumber.value})
+
+
+                const AddressApartmentNumber = {value: ''}
+                descramble(parsedData, 1612)
+                assignField(parsedData, 1612, AddressApartmentNumber)
+                dataArray.push({AddressApartmentNumber: AddressApartmentNumber.value})
+
+
+                const InsuranceReason = {value: ''}
+                assignField(parsedData, 1614, InsuranceReason)
+                dataArray.push({InsuranceReason: InsuranceReason.value})
+
+
+                const InsuranceDescription = {value: ''}
+                descramble(parsedData, 1615)
+                assignField(parsedData, 1615, InsuranceDescription)
+                dataArray.push({InsuranceDescription: InsuranceDescription.value})
+
+
+                const InsuranceHolderRelation = {value: ''}
+                descramble(parsedData, 1616)
+                assignField(parsedData, 1616, InsuranceHolderRelation)
+                dataArray.push({InsuranceHolderRelation: InsuranceHolderRelation.value})
+
+
+                const InsuranceHolderIsFamilyMember = {value: ''}
+                assignBoolField(parsedData, 1617, InsuranceHolderIsFamilyMember)
+                dataArray.push({InsuranceHolderIsFamilyMember: InsuranceHolderIsFamilyMember.value})
+
+
+                const InsuranceHolderPersonalNumber = {value: ''}
+                assignField(parsedData, 1618, InsuranceHolderPersonalNumber)
+                dataArray.push({InsuranceHolderPersonalNumber: InsuranceHolderPersonalNumber.value})
+
+
+                const InsuranceHolderInsuranceNumber = {value: ''}
+                assignField(parsedData, 1619, InsuranceHolderInsuranceNumber)
+                dataArray.push({InsuranceHolderInsuranceNumber: InsuranceHolderInsuranceNumber.value})
+
+
+                const InsuranceHolderSurnameCyrl = {value: ''}
+                descramble(parsedData, 1620)
+                assignField(parsedData, 1620, InsuranceHolderSurnameCyrl)
+                dataArray.push({InsuranceHolderSurnameCyrl: InsuranceHolderSurnameCyrl.value})
+
+
+                const InsuranceHolderSurname = {value: ''}
+                descramble(parsedData, 1621)
+                assignField(parsedData, 1621, InsuranceHolderSurname)
+                dataArray.push({InsuranceHolderSurname: InsuranceHolderSurname.value})
+
+
+                const InsuranceHolderNameCyrl = {value: ''}
+                descramble(parsedData, 1622)
+                assignField(parsedData, 1622, InsuranceHolderNameCyrl)
+                dataArray.push({InsuranceHolderNameCyrl: InsuranceHolderNameCyrl.value})
+
+
+                const InsuranceHolderName = {value: ''}
+                descramble(parsedData, 1623)
+                assignField(parsedData, 1623, InsuranceHolderName)
+                dataArray.push({InsuranceHolderName: InsuranceHolderName.value})
+
+                const InsuranceStartDate = {value: ''}
+                assignField(parsedData, 1624, InsuranceStartDate)
+                dataArray.push({InsuranceStartDate: formatDateString(InsuranceStartDate.value)})
+
+
+                const AddressState = {value: ''}
+                descramble(parsedData, 1626)
+                assignField(parsedData, 1626, AddressState)
+                dataArray.push({AddressState: AddressState.value})
+
+
+                const ObligeeName = {value: ''}
+                descramble(parsedData, 1630)
+                assignField(parsedData, 1630, ObligeeName)
+                dataArray.push({ObligeeName: ObligeeName.value})
+
+
+                const ObligeePlace = {value: ''}
+                descramble(parsedData, 1631)
+                assignField(parsedData, 1631, ObligeePlace)
+                dataArray.push({ObligeePlace: ObligeePlace.value})
+
+
+                const ObligeeIdNumber = {value: ''}
+                assignField(parsedData, 1632, ObligeeIdNumber)
+                dataArray.push({ObligeeIdNumber: ObligeeIdNumber.value})
+
+
+                if (ObligeeIdNumber.value.length === 0) {
+                    assignField(parsedData, 1633, ObligeeIdNumber.value)
+                    dataArray.push({ObligeeIdNumber: ObligeeIdNumber.value})
+
+                }
+
+                const ObligeeActivity = {value: ''}
+                assignField(parsedData, 1634, ObligeeActivity)
+                dataArray.push({ObligeeActivity: ObligeeActivity.value})
+
+                console.log(dataArray)
+                resolve()
+            })
+        })
+
+    }
+
+    function descramble(fields, tag) {
+        const bs = fields[tag];
+        if (bs) {
+            try {
+                // Decode the UTF-16 (LE) encoded buffer
+                const utf8 = iconv.decode(bs, 'utf16-le');
+                fields[tag] = Buffer.from(utf8, 'utf8');
+                return;
+            } catch (err) {
+                // Handle the error if needed
+            }
+        }
+
+        // If decoding fails, set an empty buffer
+        fields[tag] = Buffer.from('');
+    }
+
     function parseTLV(data) {
 
         if (data.length === 0) {
@@ -1006,6 +1943,15 @@ const initializeIDCardReader = async (browserWindow: BrowserWindow) => {
         }
     }
 
+    function assignBoolField(fields, tag, target) {
+        const val = fields[tag];
+        if (val && val.length === 1 && val[0] === 0x31) {
+            target.value = true;
+        } else {
+            target.value = false;
+        }
+    }
+
 
 }
 
@@ -1016,7 +1962,7 @@ const cancelCardRead = () => {
     if (pcsc) {
         pcsc.close();
     }
-    if(cardReader){
+    if (cardReader) {
         cardReader.close()
     }
 
@@ -1034,552 +1980,14 @@ ipcMain.on('initialize-id-card-reader', async (event) => {
 
 })
 
-ipcMain.on('download-pdf', (event) => {
+ipcMain.on('download-pdf', async (event) => {
     const browserWindow = BrowserWindow.fromWebContents(event.sender);
-    downloadPdf(browserWindow)
+    await downloadIdCardPdf(browserWindow, allData.personalData.GivenName, allData.personalData.Surname, allData.pdf)
 
 })
 
-const downloadPdf = async (browserWindow: BrowserWindow) => {
-    const {canceled, filePath} = await dialog.showSaveDialog(browserWindow, {
-        filters: [{name: 'PDFs', extensions: ['pdf']}],
-        defaultPath: `${allData.personalData.GivenName.toLowerCase()}_${allData.personalData.Surname.toLowerCase()}.pdf`,
-    });
-
-    if (!canceled && filePath) {
-        fs.writeFileSync(filePath, allData.pdf);
-        return filePath;
-    }
-    return null;
-}
-
-function formatDateString(dateString: string) {
-
-    // Extract day, month, and year from the input string
-    const day = dateString.slice(0, 2);
-    const month = dateString.slice(2, 4);
-    const year = dateString.slice(4, 8);
-
-    // Return formatted date string
-    return `${day}.${month}.${year}`;
-}
-
-
-async function createPdf() {
-    const fontBytes = await fs.readFileSync(join(__dirname, 'fonts', 'DejaVuSans.ttf'));
-
-    const pdfDoc = await PDFDocument.create()
-    pdfDoc.registerFontkit(fontkit);
-    const customFont = await pdfDoc.embedFont(fontBytes)
-
-    // Create a new PDFDocument
-    // Add a blank page to the document
-    const page = pdfDoc.addPage([550, 750])
-
-    //linija naslov - start
-    page.drawLine({
-        start: {
-            x: 50,
-            y: 680
-        },
-        end: {
-            x: 500,
-            y: 680
-        }
-    })
-    page.drawText('ČITAČ ELEKTRONSKE LIČNE KARTE: ŠTAMPA PODATAKA', {
-        x: 50,
-        y: 685,
-        size: 10,
-        font: customFont
-    })
-    page.drawLine({
-        start: {
-            x: 50,
-            y: 700
-        },
-        end: {
-            x: 500,
-            y: 700
-        }
-    })
-    //linija naslov - end
-
-    //ubaciti slku
-
-    const image = allData.image;
-    const base64ImageContent = image.split(';base64,').pop();
-    const imageBytes = Uint8Array.from(atob(base64ImageContent), c => c.charCodeAt(0));
-
-    const jpgImage = await pdfDoc.embedJpg(imageBytes)
-    page.drawImage(jpgImage, {
-        x: 50,
-        y: 535,
-        width: 100,
-        height: 135,
-    })
-    //linija podaci o gradjaninu start
-
-    page.drawLine({
-        start: {
-            x: 50,
-            y: 520
-        },
-        end: {
-            x: 500,
-            y: 520
-        }
-    })
-    page.drawText('Podaci o građaninu', {
-        x: 50,
-        y: 505,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawLine({
-        start: {
-            x: 50,
-            y: 500
-        },
-        end: {
-            x: 500,
-            y: 500
-        }
-    })
-
-    //linija podaci o gradjaninu end
-
-    //serija podataka o gradjaninu - start
-
-    page.drawText('Prezime:', {
-        x: 50,
-        y: 480,
-        size: 10,
-        font: customFont
-
-    })
-
-    page.drawText(allData.personalData.Surname, {
-        x: 185,
-        y: 480,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText('Ime:', {
-        x: 50,
-        y: 460,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText(allData.personalData.GivenName, {
-        x: 185,
-        y: 460,
-        size: 10,
-        font: customFont
-
-    })
-
-    page.drawText('Ime jednog roditelja:', {
-        x: 50,
-        y: 440,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText(allData.personalData.ParentGivenName, {
-        x: 185,
-        y: 440,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText('Datum rođenja:', {
-        x: 50,
-        y: 420,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText(allData.personalData.DateOfBirth, {
-        x: 185,
-        y: 420,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText('Mesto rođenja, opština i', {
-        x: 50,
-        y: 400,
-        size: 10,
-        font: customFont
-    })
-    const fullBirthLocationData = `${allData.personalData.PlaceOfBirth}, ${allData.personalData.CommunityOfBirth}, ${allData.personalData.StateOfBirth}`;
-
-    if (fullBirthLocationData.length > 50) {
-        page.drawText(`${allData.personalData.PlaceOfBirth}, ${allData.personalData.CommunityOfBirth}`, {
-            x: 185,
-            y: 400,
-            size: 10,
-            font: customFont
-
-        })
-        page.drawText(`${allData.personalData.StateOfBirth}`, {
-            x: 185,
-            y: 380,
-            size: 10,
-            font: customFont
-
-        })
-    } else {
-        page.drawText(fullBirthLocationData, {
-            x: 185,
-            y: 400,
-            size: 10,
-            font: customFont
-
-        })
-    }
-
-    page.drawText('država:', {
-        x: 50,
-        y: 380,
-        size: 10,
-        font: customFont
-
-    })
-
-
-    page.drawText('Prebivaliste i adresa', {
-        x: 50,
-        y: 360,
-        size: 10,
-        font: customFont
-    })
-
-    page.drawText('stana:', {
-        x: 50,
-        y: 340,
-        size: 10,
-        font: customFont
-    })
-
-    const fullResidenceLocationData = `${allData.residenceData.Place}, ${allData.residenceData.Community}, ${allData.residenceData.Street} ${allData.residenceData.AddressNumber}${allData.residenceData.AddressLetter}/${allData.residenceData.AddressFloor}/${allData.residenceData.AddressApartmentNumber}`;
-
-    if (fullResidenceLocationData.length > 50) {
-        page.drawText(`${allData.residenceData.Place}, ${allData.residenceData.Community}`, {
-            x: 185,
-            y: 360,
-            size: 10,
-            font: customFont
-        })
-        page.drawText(`${allData.residenceData.Street} ${allData.residenceData.AddressNumber}${allData.residenceData.AddressLetter}/${allData.residenceData.AddressFloor}/${allData.residenceData.AddressApartmentNumber}`, {
-            x: 185,
-            y: 340,
-            size: 10,
-            font: customFont
-        })
-    } else {
-        page.drawText(fullResidenceLocationData, {
-            x: 185,
-            y: 360,
-            size: 10,
-            font: customFont
-        })
-    }
-    page.drawText('Datum promene adrese:', {
-        x: 50,
-        y: 320,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText(allData.residenceData.AddressDate, {
-        x: 185,
-        y: 320,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText('JMBG:', {
-        x: 50,
-        y: 300,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText(allData.personalData.PersonalNumber, {
-        x: 185,
-        y: 300,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText('Pol:', {
-        x: 50,
-        y: 280,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText(allData.personalData.Sex, {
-        x: 185,
-        y: 280,
-        size: 10,
-        font: customFont
-
-    })
-    //serija podataka o gradjaninu - end
-
-    //linija podaci o dokumentu - start
-
-    page.drawLine({
-        start: {
-            x: 50,
-            y: 260
-        },
-        end: {
-            x: 500,
-            y: 260
-        }
-    })
-    page.drawText('Podaci o dokumentu', {
-        x: 50,
-        y: 245,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawLine({
-        start: {
-            x: 50,
-            y: 240
-        },
-        end: {
-            x: 500,
-            y: 240
-        }
-    })
-
-    //linija podaci o dokumentu - end
-
-    //serija podataka o dokumentu - start
-    page.drawText('Dokument izdaje:', {
-        x: 50,
-        y: 220,
-        size: 10,
-        font: customFont
-
-    })
-
-    page.drawText(allData.documentData.IssuingAuthority, {
-        x: 185,
-        y: 220,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText('Broj dokumenta:', {
-        x: 50,
-        y: 200,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText(allData.documentData.DocumentNumber, {
-        x: 185,
-        y: 200,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText('Datum izdavanja:', {
-        x: 50,
-        y: 180,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText(allData.documentData.IssuingDate, {
-        x: 185,
-        y: 180,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText('Važi do:', {
-        x: 50,
-        y: 160,
-        size: 10,
-        font: customFont
-
-    })
-    page.drawText(allData.documentData.ExpiryDate, {
-        x: 185,
-        y: 160,
-        size: 10,
-        font: customFont
-
-    })
-    //serija podataka o dokumentu - end
-
-    //dve linije za datum stampe - start
-    page.drawLine({
-        start: {
-            x: 50,
-            y: 140
-        },
-        end: {
-            x: 500,
-            y: 140
-        }
-    })
-    page.drawLine({
-        start: {
-            x: 50,
-            y: 135
-        },
-        end: {
-            x: 500,
-            y: 135
-        }
-    })
-    //dve linije za datum stampe - end
-
-    //datum stampe - start
-    page.drawText('Datum štampe:', {
-        x: 50,
-        y: 120,
-        size: 10,
-        font: customFont
-
-    })
-
-    page.drawText(getCurrentDate(), {
-        x: 185,
-        y: 120,
-        size: 10,
-        font: customFont
-
-    })
-    //datum stampe - end
-
-    //linija za footer - start
-
-    page.drawLine({
-        start: {
-            x: 50,
-            y: 100
-        },
-        end: {
-            x: 500,
-            y: 100
-        }
-    })
-
-
-    //text footer-a
-
-    page.drawText('1. U čipu lične karte, podaci o imenu i prezimenu imaoca lične karte ispisani su na nacionalnom pismu onako kako su', {
-        x: 50,
-        y: 80,
-        size: 7.5,
-        font: customFont
-
-    })
-    page.drawText('ispisani na samom obrascu lične karte, dok su ostali podaci ispisani latiničkim pismom.', {
-        x: 50,
-        y: 70,
-        size: 7.5,
-        font: customFont
-
-    })
-    page.drawText('2. Ako se ime lica sastoji od dve reči čija je ukupna dužina između 20 i 30 karaktera ili prezimena od dve reči čija je', {
-        x: 50,
-        y: 60,
-        size: 7.5,
-        font: customFont
-
-    })
-
-    page.drawText('ukupna dužina između 30 i 36 karaktera, u čipu lične karte izdate pre 18.08.2014. godine, druga reč u imenu ili', {
-        x: 50,
-        y: 50,
-        size: 7.5,
-        font: customFont
-
-    })
-
-    page.drawText('prezimenu skraćuje se na prva dva karaketra.', {
-        x: 50,
-        y: 40,
-        size: 7.5,
-        font: customFont
-
-    })
-
-    page.drawLine({
-        start: {
-            x: 50,
-            y: 30
-        },
-        end: {
-            x: 500,
-            y: 30
-        }
-    })
-
-    return await pdfDoc.save()
-}
-
-
-function getCurrentDate() {
-    // Create a new Date object
-    const today = new Date();
-
-// Get the day, month, and year from the Date object
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0'); // Months are zero-based
-    const year = today.getFullYear();
-
-// Format the date as 'dd.mm.yyyy'
-    return `${day}.${month}.${year}`;
-}
-
-async function printPdf() {
-    const printWindow = new BrowserWindow({show: false});
-    const base64PDF = allData.pdfBase64
-
-    const pdfDataUrl = `data:application/pdf;base64,${base64PDF}`;
-
-    try {
-        await printWindow.loadURL(pdfDataUrl);
-
-
-        await printWindow.webContents.executeJavaScript('setTimeout(()=>{ window.close() },30000)')
-        await printWindow.webContents.executeJavaScript('window.print();');
-
-
-    } catch (error) {
-        console.error('Failed to load URL:', error);
-    }
-
-
-}
-
-
-function uint8ArrayToBase64(uint8Array) {
-    let binary = '';
-    const len = uint8Array.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(uint8Array[i]);
-    }
-    return btoa(binary);
-}
 
 
 ipcMain.on('print-pdf', async () => {
-    await printPdf();
+    await printIdCardPdf(allData.pdfBase64);
 })

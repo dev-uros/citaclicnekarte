@@ -47,6 +47,7 @@
     "dotenv": "^16.4.5",
     "electron-log": "^5.1.7",
     "electron-squirrel-startup": "^1.0.1",
+    "iconv-lite": "^0.6.3",
     "jimp": "^0.22.12",
     "pcsclite": "^1.0.1",
     "pdf-lib": "^1.17.1",
