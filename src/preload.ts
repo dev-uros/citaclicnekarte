@@ -42,7 +42,7 @@ export type CardData = {
         AddressDate: string
     },
     image: string,
-    pdf: Uint8Array,
+    pdf: string | Uint8Array,
     pdfBase64: string
 }
 ipcRenderer.on('insert-card-into-reader', () => {

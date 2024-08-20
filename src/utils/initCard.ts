@@ -1,7 +1,7 @@
 import log from "electron-log/main";
 import {buildAPDU} from "./buildApdu";
 
-export async function initCard(pcsc, reader, protocol, browserWindow){
+export async function initCard(pcsc, reader, protocol){
     log.info('Protocol(', reader.name, '):', protocol)
 
     // Init card

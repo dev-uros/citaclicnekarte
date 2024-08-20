@@ -1,25 +1,33 @@
 import log from "electron-log/main";
 import {initCard} from "../utils/initCard";
 import {handleCardData} from "./handleCardData";
-import {handlePersonalData} from "./handlePersonalData";
-import {handleResidenceData} from "./handleResidenceData";
-import {handleImage} from "./handleImage";
-import {createPdf} from "./handlePdf";
+// import {handlePersonalData} from "./handlePersonalData";
+// import {handleResidenceData} from "./handleResidenceData";
+// import {handleImage} from "./handleImage";
+// import {createPdf} from "./handlePdf";
 import {CardData} from "../preload";
-import {initS1} from "../medCard/initS1";
+import {initS1} from "./initS1";
+import {handlePersonalData} from "./handlePersonalData";
+import {handleImage} from "../idCard/handleImage";
+import {createPdf} from "../idCard/handlePdf";
+import {handleValidityData} from "./handleValidityData";
+import {handleResidenceAndInsuranceData} from "./handleResidenceAndInsuranceData";
 
-export async function handleIDCard(pcsc, reader, protocol, browserWindow) {
+export async function handleMedCard(pcsc, reader, protocol, browserWindow) {
 
     log.info('Protocol(', reader.name, '):', protocol)
 
-    log.info('Initializing MED card')
+    log.info('Initializing ID card')
     await initCard(pcsc, reader, protocol);
 
+    log.info('Initializing S1')
+    await initS1(reader, protocol);
 
     //HANDLE CARD DATA
     log.info('Reading Card Data')
     const cardData = await handleCardData(pcsc, reader, protocol)
 
+    console.log(cardData);
 
     //HANDLE PERSONAL DATA
     log.info('Reading Personal Data')
@@ -28,14 +36,15 @@ export async function handleIDCard(pcsc, reader, protocol, browserWindow) {
 
 
     //HANDLE RESIDENCE DATA
-    log.info('Reading Residence Data')
-    const residenceData = await handleResidenceData(pcsc, reader, protocol)
+    log.info('Reading Validity Data')
+    const validityData = await handleValidityData(pcsc, reader, protocol);
 
 
     //HANDLE IMAGE
-    log.info('Reading Image Data')
+    log.info('Reading Residence and Insurance data')
 
-    const image = await handleImage(pcsc, reader, protocol)
+    const residenceAndInsuranceData = await handleResidenceAndInsuranceData(pcsc, reader, protocol)
+
 
     log.info('Formatting card data')
     const allData = formatAllCardData(cardData, personalData, residenceData, image);
