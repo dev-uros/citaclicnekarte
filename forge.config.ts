@@ -13,14 +13,16 @@ dotenv.config();
 
 const config: ForgeConfig = {
     publishers: [
+
         new PublisherGithub({
             repository: {
                 name: 'citaclicnekarte',
-                owner: 'dev-uros'
+                owner: 'dev-uros',
             },
             authToken: process.env.GITHUB_TOKEN,
             prerelease: true,
-        })
+        }),
+
     ],
     packagerConfig: {
         asar: true,

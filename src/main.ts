@@ -1,13 +1,8 @@
 import {app, BrowserWindow, dialog, ipcMain} from 'electron';
 import {join} from 'path';
 import pcsclite from 'pcsclite'
-import {PDFDocument} from 'pdf-lib'
-import fontkit from '@pdf-lib/fontkit';
-import Jimp from "jimp";
-import * as fs from "fs";
 import log from 'electron-log/main';
 import {updateElectronApp, UpdateSourceType} from "update-electron-app";
-import iconv from 'iconv-lite';
 import {APOLLO_ATR, GEMALTO_ATR_1, GEMALTO_ATR_2, GEMALTO_ATR_3, GEMALTO_ATR_4, MEDICAL_ATR} from "./utils/constants";
 import {testGemalto} from "./utils/testGemalto";
 import {testMedCard} from "./utils/testMedCard";
@@ -20,11 +15,13 @@ import {handleMedCard} from "./medCard/handleMedCard";
 if (require('electron-squirrel-startup')) {
     app.quit();
 }
+
+
 updateElectronApp({
     updateSource: {
         type: UpdateSourceType.ElectronPublicUpdateService,
         repo: 'dev-uros/citaclicnekarte',
-        host: 'https://update.electronjs.org'
+        host: 'https://update.electronjs.org',
     },
     updateInterval: '1 hour',
     logger: log
